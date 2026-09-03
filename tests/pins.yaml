@@ -30,18 +30,3 @@ spec_ids_before_the_ceiling_ruling:   # what the six ids read before the nitrate
 excluded_floats:   # config/events.yaml `excluded_floats:`, the two rulings of 2026-08-25
   salinity: [6902963, 6903872]
   nitrate: [1902692, 2902882, 2902914, 4902679, 4902680, 4902681, 4902683]
-
-labels:   # the old labels (data/labels/verdicts.csv) and the label table (reviews.parquet)
-  reviews: 58525          # rows of verdicts.csv = rows of reviews.parquet
-  sheets: 224
-  resolved_keys: 7798     # the old catalogue rule (first verdict wins): decided keys
-  resolved_accepted: 1605
-  consistent_keys: 4172   # the reviewer-consistent training set
-  consistent_accepted: 1068
-  labelled_keys: 11792    # every key with a label; the exclusion set for a new draw
-
-reuse:   # data/labels/audit/ — the reuse audit of the old labels
-  direct: 1713            # old uniform verdicts the study may use directly (the upward held region)
-  direct_accepted: 234
-  direct_floats: 398
-  direct_other_frame: 673

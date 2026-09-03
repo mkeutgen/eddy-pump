@@ -15,12 +15,13 @@ from the MOM6-COBALT OSSE; the floats give the census and the return fraction.
 
 This repository was cut fresh on 2026-09-03 from `mkeutgen/eddy-pump-archive` (tag
 `archive-2026-09-03`, commit `cbd6fd6`), keeping only what the study needs. The six saved candidate
-lists load and their key hashes match the archive; `load_manifest()` gives the six pools. The
-labelling loop and the rate report still carry the pre-study label layer — the first step below
-removes it.
+lists load and their key hashes match the archive; `load_manifest()` gives the six pools. The whole
+pipeline runs on the study's one label table — the old label layer is gone from the code
+(done 2026-09-03, `docs/STATUS.md`).
 
-Two physical rates are measured (both awaiting an adversarial review): upward 12.9 % of 186,275,
-±16 %; downward 18.7 % of 133,307, ±14 %.
+Two physical rates are measured (both awaiting an adversarial review): downward 18.7 % of 133,307,
+±14 %; upward 12.9 % of the open region (171,578 of the pool's 186,275 levels), ±17 % — the old
+≥ 1.96 σ region of the pool is dropped, to be re-sampled under the study's criterion.
 
 ## What is settled
 
@@ -36,11 +37,11 @@ precision target carry over from the archive unchanged.
 
 Each step names what it produces and the one number that matters. Estimates are agent working time.
 
-1. **One label layer, one design.** `labels.py` reads one table; the batch drawer and the rate
-   report lose the held-region logic (~150 lines); `criteria.yaml` keeps one criterion and two
-   calibration references; the ingest stops checking the old layer; every "old / legacy / letter /
-   paper line" word leaves the code. *Check: the downward rate reproduces exactly (18.7 % of
-   133,307, ±14 %); the tests pass.* *One day.*
+1. **One label layer, one design — done 2026-09-03.** `labels.py` reads one table; the rate report
+   dropped the held-region combination; `criteria.yaml` is one criterion and two calibration
+   references; the classifier trains on the study's own labels; every old / legacy / letter word left
+   the code. The downward rate reproduces to the bit (0.18738977257005085, 18.7 % of 133,307, ±14 %);
+   the upward becomes the open region alone (0.12867, ±17 %). Tests green. See `docs/STATUS.md`.
 2. **The upward limb on the study's own footing** *(your labelling, ~2 hours).* Draw a fresh
    42-panel upward calibration set, labelled twice blind and adjudicated; draw the former held
    region (14,697 levels, ~90 panels, one per float) and label it. *Check: the pool rate's error bar
@@ -70,15 +71,16 @@ Blocked by nothing here: **the data deposit upload** (yours — the local deposi
 | decision | recommendation on file | who |
 |---|---|---|
 | The particle gate on carbon subduction (≥ 1.00 σ backscatter) | keep at 1.00 and report; it costs ~3 % of the reference carbon events (archive record) | user |
-| Whether the paper census sits beside the letter's | beside; undecided | user |
-| Sizes of the positive-control, dipole and carbon-obduction arms | from the coverage report, not before | advisor |
+| Whether the paper census sits beside the earlier GRL letter's | beside; undecided | user |
+| Sizes of the positive-control, dipole and carbon-obduction arms | from the coverage the study's own samples show, not before | advisor |
 
 ## Hard rules
 
 1. Every scientific rate comes from a probability sample with a declared frame and inclusion
    probability; score-selected labels are training only and every rate function rejects them.
-2. Old labels are directly reusable only when pool identity **and** criterion version match;
-   otherwise they are calibration, training or audit evidence.
+2. A rate comes only from the study's own probability samples under `phys_net_carbon_v1`. Labels
+   fetched from the deposit (the earlier letter's) are training evidence for the classifier only,
+   never a rate.
 3. Large grids, raw profiles and raw sheets stay out of git; the saved candidate lists, manifests
    and fingerprints stay in.
 4. No relabelling, live Argo fetch or cache rebuild without explicit instruction; nothing is deleted

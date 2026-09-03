@@ -1,13 +1,13 @@
 """Score every candidate of the two physical pools; the score only orders what a human sees.
 
 reads  results/net_carbon_v1/features/physical_{obduction,subduction}.parquet, the label table
-       (eddy_pump.labels), data/labels/external/manually_verified_physical_subd_events.csv,
+       (eddy_pump.labels), data/external/manually_verified_physical_subd_events.csv,
        $GLOBARGO_DATA/detected_physical_subd_events.csv
 writes results/net_carbon_v1/scores/physical_{obduction,subduction}.parquet (key, score, out-of-fold flag)
        data/features/net_carbon_v1/SCORES_SHA256 (what was trained on, the honest AUC, hashes)
-Upward: trained on the old labels, metrics out-of-fold with folds by float. Downward: trained on the
-earlier study's reviewed detections joined to our features; the sign-flipped upward model is kept as
-a comparison. Never a label, never in a rate.
+Upward: trained on the study's own obduction labels, metrics out-of-fold with folds by float.
+Downward: trained on the earlier study's (the companion's) reviewed detections joined to our features;
+the sign-flipped upward model is kept as a comparison. Never a label, never in a rate.
 """
 from __future__ import annotations
 
@@ -33,9 +33,9 @@ from eddy_pump.manifest import GLOBARGO_DATA, load_manifest  # noqa: E402
 
 KEYS = ["WMO", "CYCLE_NUMBER", "PRES_ADJUSTED"]
 ID_COLS = set(KEYS) | {"EVENT_TYPE", "pool_id", "spec_id", "latitude", "longitude", "abs_latitude"}
-LEGACY_POOL = "legacy_letter_v1/physical/obduction"
-B6 = "phys_obduction_letter_b6"
-COMPANION = REPO / "data/labels/external/manually_verified_physical_subd_events.csv"
+OBDUCTION_POOL = "net_carbon_v1/physical/obduction"
+CRITERION = "phys_net_carbon_v1"
+COMPANION = REPO / "data/external/manually_verified_physical_subd_events.csv"
 COMPANION_DETECTIONS = GLOBARGO_DATA / "detected_physical_subd_events.csv"
 MANIFEST_DIR = REPO / "data/features/net_carbon_v1"
 
@@ -50,11 +50,8 @@ def feature_columns(df: pd.DataFrame) -> list[str]:
 
 
 def upward_labels(pool_keys: set) -> pd.DataFrame:
-    """One decision per candidate key of the active obduction pool, from the ledger only."""
-    tr = L.training_sample(LEGACY_POOL)[["key_wmo", "key_cycle", "key_pres", "decision"]].assign(source="training_walk")
-    an = L.analysis_sample(LEGACY_POOL, B6)[["key_wmo", "key_cycle", "key_pres", "decision"]].assign(source="uniform_b6")
-    # the uniform verdict wins where a key is in both
-    lab = pd.concat([an, tr], ignore_index=True)
+    """One decision per candidate key of the active obduction pool, from the study's own reviews."""
+    lab = L.analysis_sample(OBDUCTION_POOL, CRITERION)[["key_wmo", "key_cycle", "key_pres", "decision"]].assign(source="obduction_reviews")
     lab["key"] = list(zip(lab.key_wmo.astype(int), lab.key_cycle.astype(int), lab.key_pres.astype(int)))
     lab = lab.drop_duplicates("key")
     lab = lab[lab.key.isin(pool_keys)]
@@ -174,7 +171,7 @@ def main() -> None:
     X, y, g = T[cols].to_numpy(float), T.decision.to_numpy(int), T.WMO.to_numpy(int)
     oof = grouped_oof(X, y, g, a.seed)
     from sklearn.metrics import roc_auc_score
-    uni = (T.source == "uniform_b6").to_numpy()
+    uni = (T.source == "obduction_reviews").to_numpy()
     auc_uniform = float(roc_auc_score(y[uni], oof[uni]))
     rho_uniform = float(np.corrcoef(oof[uni], y[uni])[0, 1])
     dec = pd.qcut(pd.Series(oof[uni]), 10, labels=False, duplicates="drop")
@@ -230,14 +227,14 @@ def main() -> None:
             "pool_rows": int(len(obd)), "labelled_rows": int(len(T)),
             "labels_by_source": T.source.value_counts().to_dict(), "accepted": int(y.sum()),
             "floats": int(T.WMO.nunique()), "cv": "StratifiedGroupKFold(5) grouped by float",
-            "auc_oof_on_uniform_reviews": auc_uniform, "rho_oof_on_uniform_reviews": rho_uniform,
-            "uniform_reviews": int(uni.sum()),
-            "decile_calibration_on_uniform_reviews": cal.round(4).to_dict(orient="index"),
+            "auc_oof_on_obduction_reviews": auc_uniform, "rho_oof_on_obduction_reviews": rho_uniform,
+            "obduction_reviews": int(uni.sum()),
+            "decile_calibration_on_obduction_reviews": cal.round(4).to_dict(orient="index"),
         },
         "downward": {
             "pool_rows": int(len(sub)),
             "trained_on": "the companion's reviewed R-detections joined to the active pool by key; verified Category 1/2 -> 1, "
-                          "detected-but-not-verified or Category 0 -> 0; criterion phys_companion_2024; training only (hard rule 5)",
+                          "detected-but-not-verified or Category 0 -> 0; the companion's 2024 rule; training only",
             "labelled_rows": int(len(D)), "labels_by_source": D.source.value_counts().to_dict(), "accepted": int(yd.sum()),
             "floats": int(D.WMO.nunique()), "cv": "StratifiedGroupKFold(5) grouped by float",
             "auc_oof_on_companion_labels": auc_d, "rho_oof_on_companion_labels": rho_d,
@@ -254,7 +251,7 @@ def main() -> None:
         "files": {n: hashlib.sha256((sdir / f"{n}.parquet").read_bytes()).hexdigest() for n in ("physical_obduction", "physical_subduction")},
     }
     (MANIFEST_DIR / "SCORES_SHA256").write_text(
-        "# provenance of the study's candidate scores -- built by production/score_study_pools.py; do not edit\n"
+        "# provenance of the study's candidate scores -- built by pipeline/scores.py; do not edit\n"
         + json.dumps(man, indent=2) + "\n")
     print(json.dumps({k: v for k, v in man.items() if k in ("upward", "downward")}, indent=2, default=str)[:3000])
     print(f"manifest -> {MANIFEST_DIR / 'SCORES_SHA256'}")

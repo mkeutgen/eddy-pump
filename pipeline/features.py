@@ -118,7 +118,7 @@ def main() -> None:
         "pools": records,
     }
     (MANIFEST_DIR / "FEATURES_SHA256").write_text(
-        "# provenance of the study's candidate feature tables -- built by production/build_study_features.py; do not edit\n"
+        "# provenance of the study's candidate feature tables -- built by pipeline/features.py; do not edit\n"
         + json.dumps(man, indent=2) + "\n")
     print(f"manifest -> {MANIFEST_DIR / 'FEATURES_SHA256'}")
 

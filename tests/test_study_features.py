@@ -2,9 +2,10 @@
 
 Pins the two tracked manifests, `data/features/net_carbon_v1/FEATURES_SHA256` and
 `SCORES_SHA256`: features for every candidate of both pools from the bound cache, under the
-pools' pinned spec ids; an upward classifier trained on ledger labels only, with honest
-float-grouped out-of-fold metrics on the uniform reviews; and a downward score transferred
-through a data-decided sign alignment and checked against the companion's verified events.
+pools' pinned spec ids; an upward classifier trained on the study's own obduction labels, with
+honest float-grouped out-of-fold metrics; and a downward score transferred through a data-decided
+sign alignment and checked against the companion's verified events. The score only orders which
+panels a human sees first; it never enters a rate.
 The large parquet files live under `results/` and are checked only when present.
 """
 
@@ -22,7 +23,7 @@ from eddy_pump.manifest import load_manifest
 
 REPO = Path(__file__).resolve().parents[1]
 MAN = REPO / "data/features/net_carbon_v1"
-pytestmark = pytest.mark.skipif(not (MAN / "SCORES_SHA256").exists(), reason="run build_study_features.py and score_study_pools.py")
+pytestmark = pytest.mark.skipif(not (MAN / "SCORES_SHA256").exists(), reason="run pipeline/features.py and pipeline/scores.py")
 
 
 def _load(name):
@@ -54,17 +55,17 @@ def test_features_cover_every_candidate_of_both_pools_under_the_pinned_specs(fea
     assert by["net_carbon_v1/physical/subduction"]["rows"] == PINS["pool_rows"]["physical_subduction"]
 
 
-def test_the_upward_score_is_trained_on_ledger_labels_only_and_measured_honestly(scores):
+def test_the_upward_score_is_trained_on_the_studys_obduction_labels_and_measured_honestly(scores):
     u = scores["upward"]
     assert u["pool_rows"] == PINS["pool_rows"]["physical_obduction"]
-    assert set(u["labels_by_source"]) == {"training_walk", "uniform_b6"}
-    assert u["uniform_reviews"] == 2_387
+    assert set(u["labels_by_source"]) == {"obduction_reviews"}
+    assert u["obduction_reviews"] == 576   # the open-region analysis sample under phys_net_carbon_v1
     assert "grouped by float" in u["cv"]
-    assert u["auc_oof_on_uniform_reviews"] > 0.85
-    assert u["rho_oof_on_uniform_reviews"] > 0.5
-    cal = u["decile_calibration_on_uniform_reviews"]
+    assert u["auc_oof_on_obduction_reviews"] > 0.7    # honest OOF on 576 study labels; refined in the classifier step
+    assert u["rho_oof_on_obduction_reviews"] > 0.3
+    cal = u["decile_calibration_on_obduction_reviews"]
     obs = [cal[k]["observed"] for k in sorted(cal, key=int)]
-    assert obs[-1] > 0.5 and obs[0] < 0.03 and obs[-1] > obs[-2] > obs[-3]
+    assert obs[0] < 0.05 and obs[-1] > 0.4 and obs[-1] > obs[0]
     assert "latitude" in scores["features"]["excluded_ids"] and "longitude" in scores["features"]["excluded_ids"]
 
 
@@ -74,7 +75,7 @@ def test_the_downward_score_is_trained_on_the_companions_reviewed_detections_tra
     so training only (hard rule 5) -- which is all a score is for."""
     d = scores["downward"]
     assert d["pool_rows"] == 133_307
-    assert "training only" in d["trained_on"] and "phys_companion_2024" in d["trained_on"]
+    assert "training only" in d["trained_on"] and "companion" in d["trained_on"]
     assert d["labelled_rows"] == 13_543 and d["accepted"] == 3_983
     assert set(d["labels_by_source"]) == {"companion_verified", "companion_rejected", "companion_detected_not_verified"}
     assert "grouped by float" in d["cv"]

@@ -35,7 +35,7 @@ class Criterion:
 
     @property
     def is_ruled(self) -> bool:
-        """Only a ruled criterion may open a batch. Historical ones are for reuse mapping."""
+        """Only a ruled criterion may open a batch."""
         return self.status == "ruled"
 
     @property

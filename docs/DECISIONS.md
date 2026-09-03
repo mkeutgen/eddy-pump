@@ -43,9 +43,11 @@ road that built it.
   applies to both limbs. **Why:** one criterion, one design. *(Archive: the criterion.)*
 - **The precision target is ±15 % relative per limb** — assumed, pending the advisor. *(Archive: the
   precision target.)*
-- **Old labels are directly reusable only when pool identity and criterion version match;**
-  otherwise they are calibration, training or audit evidence. **Why:** key overlap is not
-  interchangeability. *(Archive: the reuse audit.)*
+- **The old (earlier GRL letter) labels left the repository; a rate comes only from the study's own
+  probability samples under `phys_net_carbon_v1`.** Old labels may be fetched from the deposit as
+  classifier training evidence only, never a rate — key overlap is not interchangeability. **Why:**
+  one criterion, one design; the old labels were judged under a different rule. *(Archive: the reuse
+  audit, §30.)*
 - **Every companion subduction event is a reference event;** one the detector misses is a detector
   defect, never a bad label. *(Archive: decisions taken.)*
 

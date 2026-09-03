@@ -1,7 +1,7 @@
-# provenance of the study's candidate scores -- built by production/score_study_pools.py; do not edit
+# provenance of the study's candidate scores -- built by pipeline/scores.py; do not edit
 {
   "study_id": "net_carbon_v1",
-  "built": "2026-09-02T21:29:01",
+  "built": "2026-09-03T13:23:44",
   "seed": 0,
   "model": "sklearn HistGradientBoostingClassifier(max_iter=300, lr=0.05, leaves=31, l2=1.0)",
   "features": {
@@ -20,73 +20,72 @@
   },
   "upward": {
     "pool_rows": 186275,
-    "labelled_rows": 4824,
+    "labelled_rows": 576,
     "labels_by_source": {
-      "training_walk": 2437,
-      "uniform_b6": 2387
+      "obduction_reviews": 576
     },
-    "accepted": 1092,
-    "floats": 492,
+    "accepted": 116,
+    "floats": 406,
     "cv": "StratifiedGroupKFold(5) grouped by float",
-    "auc_oof_on_uniform_reviews": 0.8839291198329342,
-    "rho_oof_on_uniform_reviews": 0.5765719339092102,
-    "uniform_reviews": 2387,
-    "decile_calibration_on_uniform_reviews": {
+    "auc_oof_on_obduction_reviews": 0.753317091454273,
+    "rho_oof_on_obduction_reviews": 0.316882652170215,
+    "obduction_reviews": 576,
+    "decile_calibration_on_obduction_reviews": {
       "0": {
-        "n": 239,
-        "observed": 0.0126,
-        "predicted": 0.0004
+        "n": 58,
+        "observed": 0.0172,
+        "predicted": 0.0007
       },
       "1": {
-        "n": 239,
-        "observed": 0.0167,
-        "predicted": 0.0008
-      },
-      "2": {
-        "n": 238,
-        "observed": 0.0084,
-        "predicted": 0.0014
-      },
-      "3": {
-        "n": 239,
-        "observed": 0.0209,
+        "n": 58,
+        "observed": 0.069,
         "predicted": 0.0022
       },
+      "2": {
+        "n": 57,
+        "observed": 0.1053,
+        "predicted": 0.0041
+      },
+      "3": {
+        "n": 58,
+        "observed": 0.1207,
+        "predicted": 0.0073
+      },
       "4": {
-        "n": 239,
-        "observed": 0.0126,
-        "predicted": 0.0036
+        "n": 57,
+        "observed": 0.1579,
+        "predicted": 0.0141
       },
       "5": {
-        "n": 238,
-        "observed": 0.0252,
-        "predicted": 0.0058
+        "n": 58,
+        "observed": 0.1207,
+        "predicted": 0.0273
       },
       "6": {
-        "n": 239,
-        "observed": 0.046,
-        "predicted": 0.0102
+        "n": 57,
+        "observed": 0.1754,
+        "predicted": 0.0553
       },
       "7": {
-        "n": 238,
-        "observed": 0.1303,
-        "predicted": 0.0197
+        "n": 58,
+        "observed": 0.3276,
+        "predicted": 0.1157
       },
       "8": {
-        "n": 239,
-        "observed": 0.1632,
-        "predicted": 0.0568
+        "n": 57,
+        "observed": 0.4737,
+        "predicted": 0.2686
       },
       "9": {
-        "n": 239,
-        "observed": 0.5816,
-        "predicted": 0.5123
+        "n": 58,
+        "observed": 0.4483,
+        "predicted": 0.6954
       }
     }
   },
   "downward": {
     "pool_rows": 133307,
-    "trained_on": "the companion's reviewed R-detections joined to the active pool by key; verified Category 1/2 -> 1, detected-but-not-verified or Category 0 -> 0; criterion phys_companion_2024; training only (hard rule 5)",
+    "trained_on": "the companion's reviewed R-detections joined to the active pool by key; verified Category 1/2 -> 1, detected-but-not-verified or Category 0 -> 0; the companion's 2024 rule; training only",
     "labelled_rows": 13543,
     "labels_by_source": {
       "companion_detected_not_verified": 9327,
@@ -152,8 +151,8 @@
     },
     "transfer_comparison": {
       "what": "the upward model through the sign alignment, kept as score_transfer",
-      "auc_verified_vs_rejected": 0.77863645816609,
-      "auc_verified_vs_pool": 0.7191158901131449
+      "auc_verified_vs_rejected": 0.774116173996998,
+      "auc_verified_vs_pool": 0.6628439385116196
     },
     "alignment": {
       "flipped": [
@@ -190,7 +189,7 @@
     "note": "trained on the companion's labels (training only); no study-criterion subduction label exists yet"
   },
   "files": {
-    "physical_obduction": "4cf5d07b43617ba62d60a4f776dc268c28b15b041b8c94f0535d3bdbb4fa5491",
-    "physical_subduction": "6b8f5b9ac5d6981f19a42013358001ad26891613f9aad5859293f4dd33f7a2a7"
+    "physical_obduction": "5a463a52da01481320f2807a047314c6264e689a316aa43b6d4e4a374a5631b8",
+    "physical_subduction": "660fbc131f394a068c2485acef372e33d1b5cd3005b302d36bdf0db3f20aec07"
   }
 }

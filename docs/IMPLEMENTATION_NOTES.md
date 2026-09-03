@@ -39,7 +39,7 @@ plan expands this file.)
 - `candidates.py` — the detector wrapper: detects a pool from the bound cache, saves/reads a list,
   `content_hash()` (the sha256 of the sorted key triples — a pool's identity), `verify_saved()`.
 - `batches.py` — the batch design: the score-stratified uniform draw and its inclusion probabilities.
-- `labels.py` — the label table (one layer, after the "one label layer" plan step).
+- `labels.py` — the study's one label table (query API; the only door a rate may use).
 - `criteria.py` — loads `config/criteria.yaml`; the active criterion.
 - `domain.py` — a re-export shim (removed in the "tests and documents" plan step).
 
@@ -66,6 +66,6 @@ calibration passes) → `rates.py` (the rate per limb, its denominator and error
 - The absolute cache path in `CACHE_IDENTITY.json` and `CANDIDATES.json` points at one machine; the
   cache comes from the data deposit via `scripts/fetch_caches.sh`. (Dropping the absolute path is a
   plan item.)
-- The labelling loop and the rate report still read the pre-study label layer; the "one label layer"
-  plan step rewrites them. Until then only `verify-candidates`, `freeze-candidates` and `features`
-  run end to end.
+- The upward rate is the open region alone: its former ≥ 1.96 σ region (14,697 of the pool's 186,275
+  levels) is not yet in a probability sample and awaits a fresh draw. The downward pool is sampled
+  whole. `rates.py` reports each rate over the levels its sample covers, never extrapolating.

@@ -1,80 +1,26 @@
-# config/criteria.yaml — the human review criteria, written down and versioned.
+# config/criteria.yaml — the human review criterion, written down and versioned.
 #
-# `criterion_version` is what every reuse decision keys on (docs/PLAN.md, hard rule 3): a legacy
-# label is directly reusable only when its candidate-pool identity AND its criterion match the
-# active study's. A label judged under a different criterion is calibration, training or audit
-# evidence — never silently equivalent ground truth. That rule is only enforceable if the
-# criteria are objects with ids, which is what this file makes them.
+# The study has ONE review criterion, `phys_net_carbon_v1`, applying to both limbs (only the AOU
+# sign differs between them). `criterion_version` is what every label carries; `eddy_pump.criteria`
+# loads this file and refuses to open a batch under a criterion that is not ruled.
 #
-# Six criteria exist. Five are historical and describe what reviewers were actually asked to
-# apply; the sixth is the active study's, RULED by the user on 2026-08-26 (clause 4, the one
-# clause that separates it from the companion's, applies to both limbs). `eddy_pump.criteria`
-# loads this file and refuses to open a batch under any criterion that is not ruled.
-#
-# The clauses are quoted, never paraphrased. The evidence for every field is
-# `docs/legacy/LEGACY_LABEL_CONTRACT.md` (moved from the archived campaign tree on 2026-09-02) §4 and
-# `production/LABELING_PROTOCOL.md`.
+# The clauses are quoted, never paraphrased. Their source is `docs/LABELING_PROTOCOL.md`.
 
 criteria:
-
-  - id: phys_companion_2024
-    status: historical
-    ruled: "2024"
-    ruled_by: the companion subduction study (globargo; the GBC methods sentence)
-    applies_to: [subduction]
-    limb_sign:
-      subduction: {AOU: negative, ABS_SAL: either}
-    clauses:
-      1: "Colocated AOU and salinity peaks clearly identifiable by eye"
-      2: "situated below the mixed layer"
-      3: "with a vertical extent smaller than 200 m"
-    unit_of_judgement: cycle          # one PNG per cycle, every flagged level marked
-    channels_shown: [AOU, ABS_SAL]    # + BBP700_ADJUSTED for the carbon review
-    rows_shown: [profile_with_background, pressure_space_residual]
-    depth_rule: mechanical, not reviewer-applied — the detector restricted to 200–1000 dbar; "below the mixed layer" was never instrumented on the panel
-    anchor: none                      # no calibration set, no controls, folder-of-PNGs discipline
-    source: "~/Documents/globargo/v2/docs/classifier.md:20-22; agujournaltemplate.tex:242"
-
-  - id: phys_obduction_letter_b6
-    status: historical
-    ruled: "the Letter campaign, 2026; the protocol file carries no date"
-    ruled_by: the user, in production/LABELING_PROTOCOL.md
-    applies_to: [obduction]
-    limb_sign:
-      obduction: {AOU: positive, ABS_SAL: either}
-    clauses:
-      1: "Colocated AOU and absolute-salinity peaks at the same depth — both clearly present"
-      2: "Below the mixed layer"
-      3: "Compact — vertical extent well under ~200 m"
-      4: "Stands out against an otherwise regular background — a distinct bulge, not one wiggle among many in a messy profile"
-    unit_of_judgement: level          # one panel per candidate level, one green line at that level
-    channels_shown: [AOU, ABS_SAL, NITRATE_ADJUSTED, BBP700_ADJUSTED]
-    rows_shown: [profile_with_background, pressure_space_residual, density_space_when_available]
-    depth_rule: reviewer-applied from the panel (clause 2); no MLD drawn
-    anchor:
-      what: the 42-event calibration reference the reviewer re-labels blind before every session (kappa > 0.6, base rate on target)
-      file: results/obduction/labeling/calibration/calibration_reference.csv   # in the read-only old workspace
-      sha256_16: 8b3af4d3bfe130c3
-      n_events: 42
-      base_rate: "18/42 = 0.429 (REF_LABEL of the frozen reference: 12 clear TP + 6 borderline TP; an earlier '22/42' here was not the reference's count — corrected 2026-08-27 when the study re-labelled the set: 22/42 accepted, kappa 0.72, PASS)"
-      session: representative/representative_batch_6   # "b6", the session the criterion was locked on
-    source: production/LABELING_PROTOCOL.md
 
   - id: phys_net_carbon_v1
     status: ruled
     ruled: "2026-08-26"
     ruled_by: the user — "yes", clause 4 applies to the downward limb too
     proposed: "2026-08-26"
-    proposed_by: the agent, executing docs/PLAN.md step 1
+    proposed_by: the agent
     applies_to: [subduction, obduction]
     limb_sign:
       subduction: {AOU: negative, ABS_SAL: either}
       obduction:  {AOU: positive, ABS_SAL: either}
-    # Clauses 1–4 are the obduction protocol's, verbatim. "Peaks" is read as: anomalies of the
-    # limb's sign on AOU and of either sign on absolute salinity, at the same depth. Clauses 1–3
-    # are the companion's 2024 rule in the protocol's words; clause 4 is the one the companion
-    # never had, and it is STRICTLY TIGHTENING — an event that passes 1–4 passes 1–3, never the
-    # reverse.
+    # "Peaks" is read as: anomalies of the limb's sign on AOU and of either sign on absolute
+    # salinity, at the same depth. Clause 4 is STRICTLY TIGHTENING — an event that passes 1–4
+    # passes 1–3, never the reverse.
     clauses:
       1: "Colocated AOU and absolute-salinity peaks at the same depth — both clearly present"
       2: "Below the mixed layer"
@@ -85,73 +31,8 @@ criteria:
     rows_shown: [profile_with_background, pressure_space_residual, density_space_when_available]
     depth_rule: reviewer-applied from the panel (clause 2); no MLD drawn
     anchors:
-      obduction: phys_obduction_letter_b6/anchor      # carried over; the same 42 events
-      subduction: data/labels/draws/calib_subduction_v1.reference.yaml   # 42 levels; 17/42 — the consensus of the user's two blind passes (15/42, 20/42; kappa 0.76) with the five disagreements adjudicated by the user on 2026-08-27; stronger standing than the upward anchor's one-pass reference
-    # The one decision that was the user's, ruled "yes" on 2026-08-26, and why:
-    #   Apply clause 4 to the downward limb too. The net is a subtraction, and a subtraction of
-    #   two rates judged under different rules is not a net of anything. The cost is exactly what
-    #   hard rule 3 already says: the companion's Category-1/2 events, judged under the looser
-    #   1–3, are reference events for calibration and audit, and are not credited as direct
-    #   verdicts under this criterion. Nothing is deleted; every one of them keeps its label.
-    #   The alternative — dropping clause 4 from both limbs — would re-open the criterion drift
-    #   that the protocol's own history records (a blind TP rate sliding from ~15 % to 5 %).
-    relation:
-      extends: phys_obduction_letter_b6        # to both limbs; clauses unchanged
-      tighter_than: phys_companion_2024        # by clause 4 only
-    reuse_under_this_criterion:
-      phys_companion_2024: calibration_or_audit   # looser criterion, cycle unit, two channels
-      phys_obduction_letter_b6: direct_where_pool_identity_matches
-
-  # --- the three historical criteria the legacy sheets are keyed on, added with the ledger ----
-  # (plan step 2, 2026-08-26). They exist so that every legacy review carries a criterion id and
-  # hard rule 3 can be enforced on it. Where no protocol was written down at the time, the clause
-  # says so rather than inventing one: the session sheets and their calibration rounds are the
-  # only record, and that is exactly why these reviews are calibration/audit evidence and not a
-  # rate under `phys_net_carbon_v1`.
-
-  - id: phys_obduction_precalibration
-    status: historical
-    ruled: "the Letter campaign, 2026, before the calibration anchor was locked on representative_batch_6"
-    ruled_by: the user, session by session
-    applies_to: [obduction]
-    limb_sign:
-      obduction: {AOU: positive, ABS_SAL: either}
-    clauses:
-      1: "(the criterion was drifting between sessions and was not written down; the protocol's own history records a blind TP rate sliding from ~15 % to 5 %. The sheets in obduction.labels.DRIFTED are its only record)"
-    unit_of_judgement: level
-    channels_shown: [AOU, ABS_SAL, NITRATE_ADJUSTED, BBP700_ADJUSTED]
-    rows_shown: [profile_with_background, pressure_space_residual]
-    anchor: none
-    source: production/LABELING_PROTOCOL.md ("Why this exists"); src/obduction/labels.py DRIFTED
-
-  - id: nitrate_obduction_letter
-    status: historical
-    ruled: "the Letter campaign, 2026"
-    ruled_by: the user, with the nitrate calibration rounds (nitrate/calibration_round0_LABELLED and the verify batches)
-    applies_to: [obduction]
-    limb_sign:
-      obduction: {AOU: positive, ABS_SAL: either, NITRATE_ADJUSTED: negative}
-    clauses:
-      1: "(no written protocol; the nitrate sheets and their calibration rounds are the only record: a physical obduction event whose nitrate residual at the same level is a deficit)"
-    unit_of_judgement: level
-    channels_shown: [AOU, ABS_SAL, NITRATE_ADJUSTED, BBP700_ADJUSTED]
-    rows_shown: [profile_with_background, pressure_space_residual]
-    anchor:
-      what: the nitrate calibration round
-      file: results/obduction/labeling/nitrate/calibration_round0_LABELLED.csv
-    source: src/obduction/labels.py NITRATE_TIERS
-
-  - id: carbon_obduction_letter
-    status: historical
-    ruled: "the Letter campaign, 2026"
-    ruled_by: the user, in the carbon biotracer sessions
-    applies_to: [obduction]
-    limb_sign:
-      obduction: {AOU: positive, ABS_SAL: either, BBP700_ADJUSTED: positive}
-    clauses:
-      1: "(no written protocol; the carbon biotracer sheets are the only record: a physical obduction event whose backscatter residual at the same level is an excess)"
-    unit_of_judgement: level
-    channels_shown: [AOU, ABS_SAL, NITRATE_ADJUSTED, BBP700_ADJUSTED]
-    rows_shown: [profile_with_background, pressure_space_residual]
-    anchor: none
-    source: src/obduction/labels.py CARBON_CAMPAIGNS
+      obduction: data/external/calibration_reference_b6.csv               # 42-event upward calibration reference, kept as data (re-drawn later)
+      subduction: data/labels/draws/calib_subduction_v1.reference.yaml    # 42 levels; 17/42 — the consensus of the user's two blind passes (kappa 0.76), the five disagreements adjudicated 2026-08-27
+    # Why clause 4 applies to both limbs: the net is a subtraction, and a subtraction of two rates
+    # judged under different rules is not a net of anything. Dropping clause 4 would re-open the
+    # criterion drift the protocol's own history records (a blind TP rate sliding from ~15 % to 5 %).

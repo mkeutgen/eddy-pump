@@ -284,15 +284,18 @@ def test_the_rate_arms_are_probability_draws_with_exact_inclusion_probabilities(
         assert t["float_design_effect"] >= 1.0 and abs(t["float_design_effect"] - (1 + (r["panels_per_float_in_draw"] - 1) * t["rho_float"])) < 0.01
         assert t["neyman_vs_proportional_multiplier"] < 0.9 and t["stratified_vs_srs_multiplier"] < 0.7
         assert r["n_controls"] == {"positive": 20, "negative": 20}
-        assert r["panels_per_float_in_draw"] < 1.6, "the draw must be spread across floats (the Letter's was 4.7 per float)"
+        assert r["panels_per_float_in_draw"] < 1.6, "the draw must be spread across floats (the earlier study's was 4.7 per float)"
         assert r["max_panels_one_float"] <= 8, "a float recurs across the ten strata; the record counts it, the design effect prices it"
 
 
 @built
-def test_the_upward_arm_holds_the_letter_frame_and_the_downward_arm_holds_nothing():
+def test_the_upward_draw_recorded_a_held_region_the_rate_no_longer_credits():
+    """The frozen upward draw record still carries a held region (5 strata, 1,713 direct verdicts);
+    the rate report now drops it (the open region alone), to be re-sampled under the study's
+    criterion. This tests the frozen record's provenance, not the live rate."""
     R = _records()
     up, down = R["rate_obduction_01"], R["rate_subduction_01"]
-    assert len(up["held_strata"]) == 5 and sum(h["n_direct"] for h in up["held_strata"]) == PINS["reuse"]["direct"]
+    assert len(up["held_strata"]) == 5 and sum(h["n_direct"] for h in up["held_strata"]) == 1713
     assert up["target"]["variance_held"] > 0 and down["held_strata"] == [] and down["target"]["variance_held"] == 0
     assert up["pool_id"].endswith("physical/obduction") and down["pool_id"].endswith("physical/subduction")
     assert sum(s["N"] for s in up["strata"]) + sum(h["N"] for h in up["held_strata"]) == PINS["pool_rows"]["physical_obduction"]
@@ -384,10 +387,11 @@ def test_the_rate_status_uses_the_design_variance_and_names_levels():
     T = pd.read_csv(p)
     r = T[T.pool_id == "net_carbon_v1/physical/obduction"].iloc[0]
     assert r.status == "measured" and "candidate levels" in r.denominator
-    assert abs(r.open_rate - 0.1287) < 0.001 and abs(r.pool_rate - 0.1293) < 0.001
+    # the upward rate is the open region alone (the held region is dropped, awaiting a fresh draw)
+    assert abs(r.pool_rate - r.open_rate) < 1e-9 and abs(r.open_rate - 0.1287) < 0.001
     assert r.open_se_design < r.open_se_naive_float_bootstrap
     assert abs(r.open_se_design - 0.0114) < 0.001, "design-based SE with the three zero-count deciles floored"
-    assert 0.15 < r.pool_half_width_95_rel < 0.17
+    assert 0.17 <= r.pool_half_width_95_rel < 0.18
     assert "accepted_levels_estimated" in T.columns and "events" not in " ".join(T.columns)
     assert r.drift_band_first_half > r.pool_rate > r.drift_band_second_half
 

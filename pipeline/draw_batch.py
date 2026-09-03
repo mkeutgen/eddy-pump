@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 """Draw the study's labelling batches: a blind worksheet, a sealed answer key and a draw record each.
 
-reads  data/candidates/net_carbon_v1/ (the saved lists), results/net_carbon_v1/scores/, data/labels/audit/
-       (the reuse audit), data/labels/external/calibration_reference_b6.csv, config/
+reads  data/candidates/net_carbon_v1/ (the saved lists), results/net_carbon_v1/scores/,
+       data/external/{calibration_reference_b6.csv, manually_verified_physical_subd_events.csv}, config/
 writes results/net_carbon_v1/labeling/<batch>/{<batch>.csv, ANSWER_KEY_do_not_open.csv, panels/} (not in git)
        data/labels/draws/{<batch>.yaml, DRAWS_SHA256, BATCHES.md}
-usage  build_batches.py [--seed N] [--target 0.15] [--render] [--dry-run]
-       build_batches.py --report SHEET.csv     the calibration gate on a re-labelled 42-panel sheet
-       build_batches.py --repass BATCH_ID      a fresh blind copy of a calibration batch
+usage  draw_batch.py [--seed N] [--target 0.15] [--render] [--dry-run]
+       draw_batch.py --report SHEET.csv     the calibration gate on a re-labelled 42-panel sheet
+       draw_batch.py --repass BATCH_ID      a fresh blind copy of a calibration batch
 The design is `eddy_pump.batches`: score deciles, Neyman allocation with a 5 % floor, one panel per
 float per stratum at equal inclusion probability, blind controls.
 """
@@ -25,14 +25,14 @@ import pandas as pd
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
-sys.path.insert(0, str(REPO / "production"))
+sys.path.insert(0, str(REPO / "pipeline"))
 
 from eddy_pump import batches as B  # noqa: E402
 from eddy_pump import candidates as C  # noqa: E402
 from eddy_pump import labels as L  # noqa: E402
-from eddy_pump.criteria import active_criterion, load_criteria, require_ruled  # noqa: E402
+from eddy_pump.criteria import active_criterion, require_ruled  # noqa: E402
 from eddy_pump.manifest import load_manifest  # noqa: E402
-import reuse_audit as RA  # noqa: E402
+import scores as SSP  # noqa: E402
 
 DRAWS = REPO / "data/labels/draws"
 SCORES = REPO / "results/net_carbon_v1/scores"
@@ -43,36 +43,27 @@ CANDIDATES = REPO / "data/candidates/net_carbon_v1"   # the saved lists, full ta
 def saved_rows(event_type: str) -> int:
     """The row count of a pool's saved candidate list, from its sidecar."""
     return int(json.loads((CANDIDATES / f"{event_type}.json").read_text())["rows"])
-COVERAGE = REPO / "data/labels/audit/coverage_by_pool_and_stratum.csv"
-BUDGET = REPO / "data/labels/audit/label_budget.csv"
-COMPANION_COV = REPO / "data/labels/audit/companion_coverage.csv"
-REUSE_MAP = REPO / "data/labels/audit/reuse_map.parquet"
-DIRECT_FRAMES = REPO / "data/labels/audit/direct_by_legacy_frame.csv"
-DIRECT_FLIPS = REPO / "data/labels/audit/direct_flips.csv"
-B6_REFERENCE = REPO / "data/labels/external/calibration_reference_b6.csv"   # the 42 panels; sha256 8b3af4d3..., the same file the draw records name
-LEGACY_POOL = "legacy_letter_v1/physical/obduction"
-B6 = "phys_obduction_letter_b6"
-COMPANION_CRIT = "phys_companion_2024"
-HELD_FRAME = "letter_pool_1p96"
+B6_REFERENCE = REPO / "data/external/calibration_reference_b6.csv"   # the 42 panels; sha256 8b3af4d3..., the same file the draw records name
+COMPANION_EVENTS = REPO / "data/external/manually_verified_physical_subd_events.csv"   # the companion's reviewed subduction events
+COMPANION_CRIT = "the companion's 2024 rule"
 N_CONTROLS = 20            # positive and negative each, per rate batch — the blind carry-over
-CALIB_TIERS = {"clear_TP": 12, "clear_FP": 12, "borderline": 18}   # the b6 reference's own shape
-SECONDS_PER_PANEL = RA.SECONDS_PER_PANEL
-DESIGN = "score_stratified_spread_across_floats"
-RHO_FLOAT = 0.235          # (1.87 - 1) / (4.7 - 1): the legacy pooled design effect at its panels per float
-RHO_SOURCE = ("intra-float correlation implied by the direct sample's pooled float-bootstrap design effect 1.87 "
-              "at 4.7 panels per float (data/labels/audit/label_budget.csv, design_effect_pooled)")
+CALIB_TIERS = {"clear_TP": 12, "clear_FP": 12, "borderline": 18}   # the calibration reference's own shape
+SECONDS_PER_PANEL = 28.7
+RHO_FLOAT = 0.235          # (1.87 - 1) / (4.7 - 1): the study's pooled design effect at its panels per float
+RHO_SOURCE = ("intra-float correlation implied by the study's pooled float-bootstrap design effect 1.87 "
+              "at 4.7 panels per float")
 
 
 # --------------------------------------------------------------------------------------------- #
-# the pools with their scores, frames and identities
+# the pools with their scores and identities
 # --------------------------------------------------------------------------------------------- #
-def load_pool_frame(study, pool, frames: dict[str, pd.DataFrame]) -> pd.DataFrame:
+def load_pool_frame(study, pool) -> pd.DataFrame:
     et = pool.event_type
     s = pd.read_parquet(SCORES / f"{et}.parquet")
     if not ((s.pool_id == pool.pool_id).all() and (s.spec_id == pool.spec_id).all()):
         raise SystemExit(f"{et}: the score table is not this pool's ({pool.pool_id}, {pool.spec_id})")
     s["key"] = B.key3(s)
-    a, side = C.read_anchor(study, pool)
+    a, side = C.read_saved(study, pool)
     a["key"] = B.key3(a)
     s = s.merge(a[["key", "candidate_id"]], on="key", how="left", validate="one_to_one")
     if s.candidate_id.isna().any():
@@ -82,16 +73,13 @@ def load_pool_frame(study, pool, frames: dict[str, pd.DataFrame]) -> pd.DataFram
     c["key"] = B.key3(c)
     c = c.drop_duplicates("key").drop(columns=B.KEYS)
     s = s.merge(c, on="key", how="left", validate="one_to_one")
-    f = frames[pool.pool_id][["key", "frame_stratum", "depth_band"]]
-    s = s.merge(f, on="key", how="left", validate="one_to_one")
-    if len(s) != n_levels or s.frame_stratum.isna().any():
-        raise SystemExit(f"{et}: {len(s)} rows against {n_levels} saved levels, or a row without a frame")
+    if len(s) != n_levels:
+        raise SystemExit(f"{et}: {len(s)} rows against {n_levels} saved levels")
     s["WMO"] = s.WMO.astype(int)
     s["CYCLE_NUMBER"] = s.CYCLE_NUMBER.round().astype(int)
     s["decile"] = B.score_deciles(s)
-    held = (s.frame_stratum == HELD_FRAME) if pool.direction.value == "obduction" else pd.Series(False, index=s.index)
-    s["region"] = np.where(held, "held", "open")
-    s["design_stratum"] = s.region + "|d" + s.decile.astype(str)
+    s["region"] = "open"                              # every row is drawn; the pool is one region
+    s["design_stratum"] = "open|d" + s.decile.astype(str)
     return s
 
 
@@ -110,12 +98,10 @@ def scores_manifest() -> dict:
 # labels that steer the allocation (never a number)
 # --------------------------------------------------------------------------------------------- #
 def upward_steering_labels(s: pd.DataFrame) -> pd.DataFrame:
-    """The uniform b6 reviews with their OUT-OF-FOLD score: the calibration the upward
-    allocation is planned on."""
-    an = L.analysis_sample(LEGACY_POOL, B6)
-    an = an[an.decision.isin([0, 1])]
-    an = an.assign(key=list(zip(an.key_wmo.astype(int), an.key_cycle.astype(int), an.key_pres.astype(int))))
-    m = an[["key", "decision"]].drop_duplicates("key").merge(s[["key", "score", "score_is_oof"]], on="key", how="inner")
+    """The study's own obduction reviews joined to the pool, with their OUT-OF-FOLD score: the
+    calibration the upward allocation is planned on (mirrors downward_steering_labels)."""
+    u = SSP.upward_labels(set(s.key))   # columns: key (the tuple), decision, source
+    m = u[["key", "decision"]].drop_duplicates("key").merge(s[["key", "score", "score_is_oof"]], on="key", how="inner")
     if not m.score_is_oof.all():
         raise SystemExit("an upward steering label carries an in-sample score; the scorer must flag every labelled row OOF")
     return m.rename(columns={"decision": "y"})[["key", "score", "y"]]
@@ -123,8 +109,6 @@ def upward_steering_labels(s: pd.DataFrame) -> pd.DataFrame:
 
 def downward_steering_labels(s: pd.DataFrame) -> pd.DataFrame:
     """The companion's reviewed detections joined to the pool, with their OOF score."""
-    import score_study_pools as SSP
-
     d = SSP.downward_labels(set(s.key))   # columns: key (the tuple), decision, source
     m = d[["key", "decision"]].drop_duplicates("key").merge(s[["key", "score", "score_is_oof"]], on="key", how="inner")
     if not m.score_is_oof.all():
@@ -149,30 +133,11 @@ def planned_acceptance(s: pd.DataFrame, lab: pd.DataFrame, p_plan: float) -> pd.
 
 
 # --------------------------------------------------------------------------------------------- #
-# the held strata (upward limb) and the target
+# the planning base rate
 # --------------------------------------------------------------------------------------------- #
-def held_variance(pool_id: str, p_plan: float) -> tuple[float, list[dict]]:
-    cov = pd.read_csv(COVERAGE)
-    c = cov[(cov.pool_id == pool_id) & (cov.n_direct_candidates > 0)]
-    rows, v = [], 0.0
-    for r in c.itertuples():
-        deff = r.direct_design_effect_within_stratum if np.isfinite(r.direct_design_effect_within_stratum) else 1.0
-        vi = (r.W ** 2) * p_plan * (1 - p_plan) * deff / r.n_direct_candidates
-        v += vi
-        rows.append({"stratum": r.stratum, "N": int(r.N_candidates), "W": float(r.W), "n_direct": int(r.n_direct_candidates),
-                     "accepted": int(r.n_direct_accepted), "design_effect_within": float(deff), "variance": float(vi),
-                     "held_at": "the direct sample, phys_obduction_letter_b6, whole-Letter-pool frame"})
-    return float(v), rows
-
-
-def planning_base_rate() -> tuple[float, str]:
-    f = pd.read_csv(DIRECT_FRAMES).set_index("legacy_frame").loc[RA.WHOLE_POOL_FRAME]
-    return float(f.rate), f"the upward direct sample's own rate, {int(f.accepted)}/{int(f.n)} on the whole-Letter-pool frame"
-
-
-def budget_reference(pool_id: str) -> float:
-    b = pd.read_csv(BUDGET)
-    return float(b[(b.pool_id == pool_id) & (b.design == DESIGN)].panels_remaining.sum())
+def planning_base_rate(lab: pd.DataFrame) -> tuple[float, str]:
+    # study-derived: the planning base rate is the steering labels' own acceptance rate
+    return float(lab.y.mean()), f"the obduction steering labels' own base rate, {int(lab.y.sum())}/{len(lab)} (study-derived)"
 
 
 # --------------------------------------------------------------------------------------------- #
@@ -182,18 +147,15 @@ def rate_arm(study, pool, s: pd.DataFrame, lab: pd.DataFrame, p_plan: float, p_s
              rng: np.random.Generator, controls: tuple[pd.DataFrame, pd.DataFrame, dict, dict],
              previously_judged: set, batch_id: str) -> tuple[B.Batch, dict]:
     T = planned_acceptance(s, lab, p_plan)
-    open_T = T[T.region == "open"].reset_index(drop=True)
+    open_T = T[T.region == "open"].reset_index(drop=True)   # the whole pool
     v_target = (target * p_plan / B.Z) ** 2
-    v_held, held_rows = held_variance(pool.pool_id, p_plan) if (T.region == "held").any() else (0.0, [])
-    if v_held >= v_target:
-        raise SystemExit("the held strata alone exceed the target variance")
     # The one-per-float rule holds within a stratum; across the ten strata a float can recur, and
-    # verdicts on one float are correlated. The legacy sample's pooled design effect (1.87 at 4.7
+    # verdicts on one float are correlated. The study sample's pooled design effect (1.87 at 4.7
     # panels per float) implies an intra-float correlation of ~0.235; the draw is solved with the
     # design effect its OWN panels-per-float implies, iterated until the two agree.
     deff, iterations = 1.0, []
     for it in range(6):
-        n_total, n_h = B.solve_n(open_T.W.to_numpy(), open_T.p_planned.to_numpy(), (v_target - v_held) / deff, 0.0)
+        n_total, n_h = B.solve_n(open_T.W.to_numpy(), open_T.p_planned.to_numpy(), v_target / deff, 0.0)
         open_T["n"] = n_h
         rng_it = rng.spawn(1)[0]
         science, chunked = [], 0
@@ -231,23 +193,19 @@ def rate_arm(study, pool, s: pd.DataFrame, lab: pd.DataFrame, p_plan: float, p_s
         "role": "analysis", "decides": True,
         "sampling": {"mode": "probability", "draw": "stratified_pps_one_per_float", "design": "probability",
                      "frame": f"the active pool {pool.pool_id} ({saved_rows(pool.event_type):,} candidate levels); the draw covers "
-                              f"the OPEN region ({int(open_T.N.sum()):,} levels" +
-                              (f"); the HELD region ({sum(h['N'] for h in held_rows):,} levels, {HELD_FRAME}) keeps its direct sample"
-                               if held_rows else ")"),
-                     "strata": "rank deciles of the classifier score over the whole pool × region",
-                     "inclusion_probability": "n_h / N_h within each open stratum, exact (one panel per float per stratum by systematic PPS)",
+                              f"all {int(open_T.N.sum()):,} levels",
+                     "strata": "rank deciles of the classifier score over the whole pool",
+                     "inclusion_probability": "n_h / N_h within each stratum, exact (one panel per float per stratum by systematic PPS)",
                      "allocation": f"Neyman on planned acceptance with a {B.FLOOR_SHARE:.0%} floor per decile; n solved for the target"},
         "target": {"rel_half_width": target, "planning_base_rate": p_plan, "planning_base_rate_source": p_source,
-                   "variance_target": v_target, "variance_held": v_held, "variance_open_planned": v_open,
+                   "variance_target": v_target, "variance_held": 0.0, "variance_open_planned": v_open,
                    "float_design_effect": float(deff), "float_design_effect_iterations": iterations,
                    "rho_float": RHO_FLOAT, "rho_float_source": RHO_SOURCE,
                    "variance_open_with_design_effect": float(v_open * deff),
-                   "expected_rel_half_width": B.rel_half_width(v_open * deff + v_held, p_plan),
-                   "expected_rel_half_width_if_unclustered": B.rel_half_width(v_open + v_held, p_plan),
+                   "expected_rel_half_width": B.rel_half_width(v_open * deff, p_plan),
+                   "expected_rel_half_width_if_unclustered": B.rel_half_width(v_open, p_plan),
                    "neyman_vs_proportional_multiplier": float(v_open / v_prop) if v_prop > 0 else None,
-                   "stratified_vs_srs_multiplier": float(v_open / v_srs) if v_srs > 0 else None,
-                   "budget_reference_panels": budget_reference(pool.pool_id), "budget_reference_design": DESIGN,
-                   "budget_reference_multiplier": RA.SCORE_STRAT},
+                   "stratified_vs_srs_multiplier": float(v_open / v_srs) if v_srs > 0 else None},
         "steering_labels": {"n": int(len(lab)), "accepted": int(lab.y.sum()), "what": pos_meta.get("steering", "")},
         "n_science": int(len(science)), "n_controls": {"positive": int(len(pos)), "negative": int(len(neg))},
         "floats_in_draw": int(science.WMO.nunique()), "floats_with_more_than_one_panel": int((per_float > 1).sum()),
@@ -259,7 +217,7 @@ def rate_arm(study, pool, s: pd.DataFrame, lab: pd.DataFrame, p_plan: float, p_s
         "strata": [{k: (float(v) if isinstance(v, (np.floating, float)) else (int(v) if isinstance(v, (np.integer, int)) else v))
                     for k, v in r.items()} for r in open_T.drop(columns=["region", "decile", "rescale_factor"]).to_dict("records")],
         "rescale_factor_planned_acceptance": float(open_T.rescale_factor.iloc[0]),
-        "held_strata": held_rows,
+        "held_strata": [],
         "controls": {"positive": pos_meta, "negative": neg_meta},
     }
     return batch, design
@@ -268,71 +226,48 @@ def rate_arm(study, pool, s: pd.DataFrame, lab: pd.DataFrame, p_plan: float, p_s
 # --------------------------------------------------------------------------------------------- #
 # control sources
 # --------------------------------------------------------------------------------------------- #
-NEG_CONTROL_SCORE_CAP = 0.5   # a b6 reject the classifier calls near-certain is a likely b6 miss, not a control
+NEG_CONTROL_SCORE_CAP = 0.5   # a rejected reference event the classifier calls near-certain is a likely detector miss, not a control
 
 
-def blind_rejudgement_history(decision_of_source: int) -> dict:
-    """What a BLIND re-judgement of a direct b6 verdict returns, honestly counted: one pair per
-    (candidate, re-judging sheet), the re-judging sheet a real review (no `_sessions` snapshot,
-    no answer key), written after the accepting sheet, on the target arm; the source restricted
-    to the direct uniform verdicts."""
-    M = pd.read_parquet(REUSE_MAP)
-    R = L.legacy_only(L.load_reviews())
-    Bt = L.load_batches().set_index("batch_id")
-    src = M[(M.reuse_status == "direct") & (M.decision == decision_of_source)][["review_id", "batch_id"]]
-    src = src.merge(R[["review_id", "candidate_id"]], on="review_id")
-    src["written"] = src.batch_id.map(Bt.first_written)
-    later = R[(R.blind == True) & R.decision.isin([0, 1]) & ~R.role.isin(["snapshot", "answer_key"])
-              & (R.control_arm.isna() | (R.control_arm == "target"))][["candidate_id", "decision", "batch_id", "sheet_sha256"]].copy()
-    later["written"] = later.batch_id.map(Bt.first_written)
-    j = src[["candidate_id", "batch_id", "written"]].merge(later, on="candidate_id", suffixes=("_src", ""))
-    j = j[(j.batch_id != j.batch_id_src) & (j.written > j.written_src)].drop_duplicates(["candidate_id", "sheet_sha256"])
-    return {"k": int(j.decision.sum()), "n": int(len(j)), "candidates": int(j.candidate_id.nunique()),
-            "sheets": int(j.sheet_sha256.nunique()),
-            "what": f"direct b6 {'accepts' if decision_of_source else 'rejects'} later re-judged BLIND in a later real sheet "
-                    f"(target arm; one pair per candidate and sheet): re-accepted / re-judged"}
+def companion_status(s: pd.DataFrame) -> pd.Series:
+    """Each pool key's status in the companion's reviewed events: 'verified' (Category 1/2),
+    'rejected' (Category 0), else 'none'. The same source scores.py's downward_labels uses."""
+    cc = pd.read_csv(COMPANION_EVENTS)
+    cc["key"] = B.key3(cc)
+    cat = cc.drop_duplicates("key").set_index("key").Category
+    st = s.key.map(cat)
+    return st.map(lambda c: "verified" if c in (1, 2) else ("rejected" if c == 0 else "none"))
 
 
-def upward_controls(s: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, dict, dict]:
-    M = pd.read_parquet(REUSE_MAP)
-    R = L.load_reviews()
-    d = M[M.reuse_status == "direct"].merge(R[["review_id", "key_wmo", "key_cycle", "key_pres", "batch_id"]], on="review_id",
-                                            suffixes=("", "_r"))
-    d = d.assign(key=list(zip(d.key_wmo.astype(int), d.key_cycle.astype(int), d.key_pres.astype(int))))
-    d = d[["key", "decision", "batch_id", "candidate_id"]].merge(s.drop(columns=["candidate_id"]), on="key", how="inner", validate="one_to_one")
-    d["REF_LABEL"] = d.decision.astype(int)
-    # A control carries the STANDING verdict: a direct verdict the ledger's own re-looks later
-    # overturned (data/labels/audit/direct_flips.csv, 32 candidates) is not a control of anything —
-    # four of the six positive controls the first batch "rejected" were such flips.
-    flipped = set(pd.read_csv(DIRECT_FLIPS).candidate_id)
-    n_flipped = int(d.candidate_id.isin(flipped).sum())
-    d = d[~d.candidate_id.isin(flipped)]
-    f = pd.read_csv(DIRECT_FRAMES).set_index("legacy_frame").loc[RA.WHOLE_POOL_FRAME]
-    hist_pos, hist_neg = blind_rejudgement_history(1), blind_rejudgement_history(0)
-    pos_meta = {"source": "the direct uniform verdicts (reuse_status direct), accepted, standing (not overturned by a re-look)", "criterion": B6,
-                "n_source": int((d.REF_LABEL == 1).sum()), "flipped_excluded_from_source": n_flipped,
-                "reference_k": hist_pos["k"], "reference_n": hist_pos["n"],
-                "reference_provenance": hist_pos["what"], "reference_candidates": hist_pos["candidates"], "reference_sheets": hist_pos["sheets"],
-                "relook_survival_k": int(f.accepted_after_relooks), "relook_survival_n": int(f.accepted),
-                "power_note": "at n = 20 a Fisher test sees a collapse (<= 60 % re-acceptance), not a moderate drift; pool the arms across batches",
-                "src": f"direct verdict under {B6}, accepted",
-                "steering": "the 2,387 uniform b6 reviews with their out-of-fold score"}
-    neg_src = d[(d.REF_LABEL == 0) & (d.score < NEG_CONTROL_SCORE_CAP)]
-    neg_meta = {"source": f"the direct uniform verdicts (reuse_status direct), rejected, standing, classifier score < {NEG_CONTROL_SCORE_CAP}", "criterion": B6,
-                "n_source": int(len(neg_src)), "score_cap": NEG_CONTROL_SCORE_CAP,
-                "reference_k": hist_neg["k"], "reference_n": hist_neg["n"], "reference_provenance": hist_neg["what"],
-                "ceiling": 0.20, "ceiling_note": "display only; the test is Fisher against the negatives' own blind history",
-                "src": f"direct verdict under {B6}, rejected"}
-    return d[d.REF_LABEL == 1], neg_src, pos_meta, neg_meta
+def upward_controls(s: pd.DataFrame, crit) -> tuple[pd.DataFrame, pd.DataFrame, dict, dict]:
+    """Blind controls for the obduction rate batch, from the upward calibration reference: its
+    accepted events (REF_LABEL 1) are the positive controls, its rejected events (REF_LABEL 0)
+    the negatives — the same reference calib_obduction_b6 is built from. This mirrors
+    downward_controls, which draws its controls from the companion's reviewed events."""
+    ref = pd.read_csv(B6_REFERENCE)
+    ref["key"] = B.key3(ref)
+    lab = ref.drop_duplicates("key").set_index("key").REF_LABEL
+    st = s.key.map(lab)
+    pos = s[st == 1].assign(REF_LABEL=1)
+    neg = s[(st == 0) & (s.score < NEG_CONTROL_SCORE_CAP)].assign(REF_LABEL=0)
+    pos_meta = {"source": "the upward calibration reference's accepted events (REF_LABEL 1) with a candidate in the pool",
+                "criterion": crit.id, "n_source": int(len(pos)), "reference_k": None, "reference_n": None,
+                "reference_provenance": f"the 42-event upward calibration reference ({B6_REFERENCE.name}); the reader REPORTS "
+                                        "the controls, the drift test pools the arms across batches",
+                "src": "upward calibration reference, accepted",
+                "steering": "the study's own obduction reviews joined to the pool, with their out-of-fold score"}
+    neg_meta = {"source": f"the upward calibration reference's rejected events (REF_LABEL 0) with a candidate in the pool, "
+                          f"classifier score < {NEG_CONTROL_SCORE_CAP}", "criterion": crit.id,
+                "n_source": int(len(neg)), "score_cap": NEG_CONTROL_SCORE_CAP, "ceiling": 0.20,
+                "ceiling_note": "display only; a rejected candidate the classifier calls likely is a plausible detector miss, not a control",
+                "src": "upward calibration reference, rejected"}
+    return pos, neg, pos_meta, neg_meta
 
 
 def downward_controls(s: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, dict, dict]:
-    cc = pd.read_csv(COMPANION_COV)
-    cc["key"] = B.key3(cc)
-    ver = cc[cc.reuse_status == "calibration_only"][["key", "Category"]]
-    rej = cc[cc.reuse_status == "audit_only"][["key", "Category"]]
-    pos = ver.merge(s, on="key", how="inner").assign(REF_LABEL=1)
-    neg = rej.merge(s, on="key", how="inner").assign(REF_LABEL=0)
+    st = companion_status(s)
+    pos = s[st == "verified"].assign(REF_LABEL=1)
+    neg = s[st == "rejected"].assign(REF_LABEL=0)
     pos_meta = {"source": "the companion's verified subduction events (Category 1/2) with a candidate in the pool", "criterion": COMPANION_CRIT,
                 "n_source": int(len(pos)), "reference_k": None, "reference_n": None,
                 "reference_provenance": f"judged under {COMPANION_CRIT} (clauses 1-3, cycle unit); the acceptance under clause 4 is "
@@ -349,29 +284,28 @@ def downward_controls(s: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, dict
 # the calibration batches
 # --------------------------------------------------------------------------------------------- #
 def calib_upward(s: pd.DataFrame, crit, rng: np.random.Generator) -> tuple[B.Batch, dict]:
-    anchor = crit.raw["anchors"]["obduction"]
-    b6 = load_criteria()[B6].raw["anchor"]
+    anchor = crit.raw["anchors"]["obduction"]        # data/external/calibration_reference_b6.csv
     ref = pd.read_csv(B6_REFERENCE)
     sha = B.sha256_of(B6_REFERENCE)
-    if not sha.startswith(b6["sha256_16"]):
-        raise SystemExit(f"the b6 reference on disk ({sha[:16]}) is not the one the criterion names ({b6['sha256_16']})")
     ref["key"] = B.key3(ref)
     m = ref[["key", "REF_LABEL", "tier"]].merge(s, on="key", how="left", validate="one_to_one")
     if m.candidate_id.isna().any():
-        raise SystemExit("a b6 reference event is not in the active obduction pool")
+        raise SystemExit("a calibration reference event is not in the active obduction pool")
     m["stratum"] = "calibration"
-    m["src"] = "b6 reference, tier " + m.tier
+    m["src"] = "calibration reference, tier " + m.tier
     ctrl = m
+    base_rate = f"{int(ref.REF_LABEL.sum())}/{len(ref)}"
     batch = B.Batch(batch_id="calib_obduction_b6", science=s.iloc[0:0].assign(design_stratum=pd.Series(dtype=str)),
                     controls=ctrl, event_type="physical_obduction", rng=rng, extra_key_cols=("tier",))
     design = {"role": "calibration", "decides": False,
               "sampling": {"mode": "calibration", "draw": "the frozen reference, every event", "design": None, "frame": None,
                            "inclusion_probability": None},
-              "reference": {"what": b6["what"], "file": str(B6_REFERENCE.relative_to(REPO)), "sha256": sha, "n_events": int(len(ref)),
-                            "base_rate": b6["base_rate"], "carried_over_as": anchor},
-              "gate": f"κ > {B.KAPPA_PASS} against REF_LABEL and the base rate on target, before every session (production/LABELING_PROTOCOL.md)",
+              "reference": {"what": "the 42-event upward calibration reference (the study's obduction anchor)",
+                            "file": str(B6_REFERENCE.relative_to(REPO)), "sha256": sha, "n_events": int(len(ref)),
+                            "base_rate": base_rate, "carried_over_as": anchor},
+              "gate": f"κ > {B.KAPPA_PASS} against REF_LABEL and the base rate on target, before every session (docs/LABELING_PROTOCOL.md)",
               "panel_note": "the study panel shows the two physical channels (phys_net_carbon_v1.channels_shown); the reference was "
-                            "judged on the Letter's four-channel panel — the first re-labelling measures the criterion across instruments",
+                            "judged on the earlier four-channel panel — the first re-labelling measures the criterion across instruments",
               "n_science": 0, "n_controls": {"calibration": int(len(ref))},
               "hours_at_planning_rate": float(len(ref)) * SECONDS_PER_PANEL / 3600,
               "reference_rows": ref[B.KEYS + ["REF_LABEL", "tier"]].to_dict("records")}
@@ -379,10 +313,7 @@ def calib_upward(s: pd.DataFrame, crit, rng: np.random.Generator) -> tuple[B.Bat
 
 
 def calib_downward(s: pd.DataFrame, rng: np.random.Generator) -> tuple[B.Batch, dict]:
-    cc = pd.read_csv(COMPANION_COV)
-    cc["key"] = B.key3(cc)
-    st = cc.set_index("key").reuse_status
-    d = s.assign(companion=s.key.map(st).fillna("none").replace({"calibration_only": "verified", "audit_only": "rejected"}))
+    d = s.assign(companion=companion_status(s))
     used: set[int] = set()
 
     def take(pool_rows: pd.DataFrame, n: int, tier: str) -> pd.DataFrame:
@@ -424,7 +355,7 @@ def calib_downward(s: pd.DataFrame, rng: np.random.Generator) -> tuple[B.Batch, 
 # --------------------------------------------------------------------------------------------- #
 def record_for(study, pool, crit, batch: B.Batch, design: dict, sheets: dict, seed: int, sm: dict) -> dict:
     return {
-        "batch_id": batch.batch_id, "built": B.stamp(), "builder": "production/build_batches.py", "seed": seed,
+        "batch_id": batch.batch_id, "built": B.stamp(), "builder": "pipeline/draw_batch.py", "seed": seed,
         "study_id": study.study_id, "pool_id": pool.pool_id, "spec_id": pool.spec_id, "event_type": pool.event_type,
         "criterion_version": crit.id, "criterion_status": crit.status,
         "cache": {"path": str(study.cache.path), "fine_grids": study.cache.fine_grids, "fine_grids_sha256": study.cache.fine_grids_sha256},
@@ -454,9 +385,9 @@ def render(study, pool, batch_dir: pathlib.Path, ws: pd.DataFrame) -> int:
 
 def write_page(records: list[dict], target: float) -> None:
     lines = ["# The study's labelling batches — built " + B.stamp()[:10], "",
-             "Built by `production/build_batches.py`; the design is `eddy_pump.batches`. Worksheets, keys and panels are under "
-             "`results/net_carbon_v1/labeling/<batch_id>/` (not in Git); the draw records beside this page are the ledger's "
-             "input when a sheet comes back labelled.", "",
+             "Built by `pipeline/draw_batch.py`; the design is `eddy_pump.batches`. Worksheets, keys and panels are under "
+             "`results/net_carbon_v1/labeling/<batch_id>/` (not in Git); the draw records beside this page are the label "
+             "table's input when a sheet comes back labelled.", "",
              "| batch | role | rows | of which science / controls | hours | expected precision | gate before labelling |",
              "|---|---|---:|---|---:|---|---|"]
     for r in records:
@@ -471,7 +402,7 @@ def write_page(records: list[dict], target: float) -> None:
                      f"{r['hours_at_planning_rate']:.1f} | {prec} | {gate} |")
     lines += ["", "## How to label one", "",
               "```", "make review BATCH=results/net_carbon_v1/labeling/<batch_id>/<batch_id>.csv   # the keyboard app, blind",
-              "python production/build_batches.py --report results/net_carbon_v1/labeling/calib_obduction_b6/calib_obduction_b6.csv",
+              "python pipeline/draw_batch.py --report results/net_carbon_v1/labeling/calib_obduction_b6/calib_obduction_b6.csv",
               "```", "",
               "The worksheet carries the key, the position and the coordinates — nothing else. The answer key beside it "
               "(`ANSWER_KEY_do_not_open.csv`) is opened by `argopod session` only once the sheet is finished.", ""]
@@ -481,18 +412,13 @@ def write_page(records: list[dict], target: float) -> None:
         t = r["target"]
         lines += [f"## `{r['batch_id']}` — the allocation", "",
                   f"Planning base rate {t['planning_base_rate']:.4f} ({t['planning_base_rate_source']}); target variance "
-                  f"{t['variance_target']:.3g}; held strata contribute {t['variance_held']:.3g}, the open draw {t['variance_open_planned']:.3g}. "
-                  f"Neyman against proportional at the same n: ×{t['neyman_vs_proportional_multiplier']:.2f}. The coverage report's budget "
-                  f"for this design was {t['budget_reference_panels']:.0f} panels.", "",
+                  f"{t['variance_target']:.3g}, the draw {t['variance_open_planned']:.3g}. "
+                  f"Neyman against proportional at the same n: ×{t['neyman_vs_proportional_multiplier']:.2f}.", "",
                   "| stratum | N | floats | score range | planned p | n | π = n/N |", "|---|---:|---:|---|---:|---:|---:|"]
         for s_ in r["strata"]:
             lines.append(f"| {s_['design_stratum']} | {s_['N']:,} | {s_['floats']:,} | {s_['score_min']:.4f}–{s_['score_max']:.4f} | "
                          f"{s_['p_planned']:.3f} | {s_['n']} | {s_['inclusion_probability']:.5f} |")
         lines.append("")
-        if r["held_strata"]:
-            lines += ["Held at their direct sample:", "", "| stratum | N | n direct | accepted | deff |", "|---|---:|---:|---:|---:|"]
-            lines += [f"| {h['stratum']} | {h['N']:,} | {h['n_direct']} | {h['accepted']} | {h['design_effect_within']:.2f} |" for h in r["held_strata"]]
-            lines.append("")
     (DRAWS / "BATCHES.md").write_text("\n".join(lines), encoding="utf-8")
 
 
@@ -530,7 +456,7 @@ def repass(src_id: str) -> None:
                 "sampling": dict(src["sampling"], draw=f"the same levels as {src_id}, re-shuffled for a blind re-labelling (pass {n})"),
                 "panels": {"dir": str(bdir / "panels"), "rendered": n_png, "of": int(len(ws))}, **sheets})
     (DRAWS / f"{bid}.yaml").write_text(
-        f"# data/labels/draws/{bid}.yaml -- a blind re-labelling copy of {src_id} (pass {n}). BUILT by production/build_batches.py\n"
+        f"# data/labels/draws/{bid}.yaml -- a blind re-labelling copy of {src_id} (pass {n}). BUILT by pipeline/draw_batch.py\n"
         f"# --repass; never edited by hand.\n" + yaml.safe_dump(rec, sort_keys=False, allow_unicode=True, width=110, default_flow_style=False),
         encoding="utf-8")
     print(f"{bid}: {len(ws)} rows, {n_png} panels -> {bdir / (bid + '.csv')}")
@@ -541,7 +467,7 @@ def main() -> None:
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--seed", type=int, default=20260827)
-    ap.add_argument("--target", type=float, default=RA.TARGET_REL)
+    ap.add_argument("--target", type=float, default=0.15)
     ap.add_argument("--render", action="store_true", help="render the panel PNGs from the bound cache")
     ap.add_argument("--dry-run", action="store_true", help="print the allocation, write nothing")
     ap.add_argument("--report", help="a re-labelled calibration sheet: print the calibration gate and exit")
@@ -569,14 +495,13 @@ def main() -> None:
         raise SystemExit("the scores were made on another cache than the one the study is bound to")
     if args.render:
         C.require_bound_cache(study)
-    frames, _ = RA.load_pools()
     pools = {p.event_type: p for p in study.pools if p.tracer is None}
     obd, sub = pools["physical_obduction"], pools["physical_subduction"]
-    S_obd, S_sub = load_pool_frame(study, obd, frames), load_pool_frame(study, sub, frames)
-    p_plan, p_source = planning_base_rate()
-    judged = L.labelled_keys(include_study=True)   # a covariate, never a filter: the study's own labelled keys count too
+    S_obd, S_sub = load_pool_frame(study, obd), load_pool_frame(study, sub)
+    p_plan, p_source = planning_base_rate(upward_steering_labels(S_obd))
+    judged = L.labelled_keys()   # a covariate, never a filter: the study's labelled keys
     judged = {(int(w), int(c), int(p)) for w, c, p in judged}
-    cc = pd.read_csv(COMPANION_COV)
+    cc = pd.read_csv(COMPANION_EVENTS)
     judged |= set(B.key3(cc))
 
     out_root = study.output.resolve("labeling")
@@ -585,9 +510,9 @@ def main() -> None:
         ("calib_obduction_b6", obd, lambda rng: calib_upward(S_obd, crit, rng)),
         ("calib_subduction_v1", sub, lambda rng: calib_downward(S_sub, rng)),
         ("rate_obduction_01", obd, lambda rng: rate_arm(study, obd, S_obd, upward_steering_labels(S_obd), p_plan, p_source, args.target,
-                                                       rng, upward_controls(S_obd), judged, "rate_obduction_01")),
+                                                       rng, upward_controls(S_obd, crit), judged, "rate_obduction_01")),
         ("rate_subduction_01", sub, lambda rng: rate_arm(study, sub, S_sub, downward_steering_labels(S_sub), p_plan,
-                                                        p_source + " (the downward pool has no direct sample of its own)", args.target,
+                                                        p_source + " (shared with the downward arm)", args.target,
                                                         rng, downward_controls(S_sub), judged, "rate_subduction_01")),
     ]
     for i, (bid, pool, make) in enumerate(jobs):
@@ -596,8 +521,7 @@ def main() -> None:
         ws, key = batch.assemble()
         print(f"{bid}: {len(ws)} rows ({design['n_science']} science, {design['n_controls']}), "
               f"{design['hours_at_planning_rate']:.1f} h"
-              + (f"; expected ±{design['target']['expected_rel_half_width']:.1%} (deff {design['target']['float_design_effect']:.2f}), "
-                 f"budget said {design['target']['budget_reference_panels']:.0f} at ×{RA.SCORE_STRAT}; "
+              + (f"; expected ±{design['target']['expected_rel_half_width']:.1%} (deff {design['target']['float_design_effect']:.2f}); "
                  f"vs SRS ×{design['target']['stratified_vs_srs_multiplier']:.2f}, vs proportional ×{design['target']['neyman_vs_proportional_multiplier']:.2f}; "
                  f"{design['floats_in_draw']} floats, {design['panels_per_float_in_draw']:.2f} per float, "
                  f"{design['floats_chunked_for_pps']} float-strata chunked"
@@ -621,7 +545,7 @@ def main() -> None:
                              "note": "counted from disk; re-run with --render if fewer than the rows"}
         DRAWS.mkdir(parents=True, exist_ok=True)
         (DRAWS / f"{bid}.yaml").write_text(
-            f"# data/labels/draws/{bid}.yaml -- the draw record of one study batch. BUILT by production/build_batches.py;\n"
+            f"# data/labels/draws/{bid}.yaml -- the draw record of one study batch. BUILT by pipeline/draw_batch.py;\n"
             f"# never edited by hand. The sheet and key it hashes live under results/ (not in Git).\n"
             + yaml.safe_dump(rec, sort_keys=False, allow_unicode=True, width=110, default_flow_style=False), encoding="utf-8")
         records.append(rec)
@@ -630,7 +554,7 @@ def main() -> None:
     write_page(records, args.target)
     (DRAWS / "DRAWS_SHA256").write_text(
         "# provenance of the study's draw records -- do not edit by hand\n"
-        f"# built {B.stamp()} by production/build_batches.py, seed {args.seed}\n"
+        f"# built {B.stamp()} by pipeline/draw_batch.py, seed {args.seed}\n"
         + "".join(f"{B.sha256_of(DRAWS / (r['batch_id'] + '.yaml'))}\t{r['batch_id']}.yaml\n" for r in records)
         + f"{B.sha256_of(DRAWS / 'BATCHES.md')}\tBATCHES.md\n")
     print(f"-> {DRAWS}")

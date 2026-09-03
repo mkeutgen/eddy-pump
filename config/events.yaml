@@ -22,8 +22,8 @@
 #
 # Loaded by eddy_pump.manifest.load_manifest(). The reasoning behind the values — the rulings on
 # plausible ranges, the nitrate ceiling, the excluded floats, the channel order, the cache identity —
-# is docs/DECISIONS.md section 27 (this file's commentary, moved out on 2026-09-02) and the dated
-# rulings it points to. Comments here say what a value is; they do not argue for it.
+# is in the archive's record (this file's full commentary lives in eddy-pump-archive). Comments here
+# say what a value is; they do not argue for it.
 
 study:
   study_id: net_carbon_v1
@@ -31,8 +31,8 @@ study:
   cache_identity: data/candidates/net_carbon_v1/CACHE_IDENTITY.json
   output_root: results/net_carbon_v1
   forbidden_output_roots:
-    - results/obduction     # the old paper's frozen tree; its reference checksums are pinned to it
-    - results/scan          # the Letter's read-only 591-float cache; never written, ever
+    - results/obduction     # a retired output tree the active study must never write into
+    - results/scan          # a retired read-only cache the active study must never write into
 
 spec_version: v1
 

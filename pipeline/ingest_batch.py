@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Load a labelled study sheet into the label table's study layer.
 
-usage  ingest_study_batch.py BATCH_ID [--allow-unfinished] [--replace] [--freeze-reference HOW]
+usage  ingest_batch.py BATCH_ID [--allow-unfinished] [--replace] [--freeze-reference HOW]
 reads  data/labels/draws/<BATCH_ID>.yaml (the draw record), the worksheet and the sealed key under
        results/net_carbon_v1/labeling/<BATCH_ID>/
 writes results/net_carbon_v1/labeling/<BATCH_ID>/<BATCH_ID>_LABELLED_<stamp>.csv (the frozen sheet, not in git)
@@ -26,7 +26,6 @@ import yaml
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
-sys.path.insert(0, str(REPO / "production"))
 
 from eddy_pump import batches as B  # noqa: E402
 from eddy_pump import labels as L  # noqa: E402
@@ -34,10 +33,10 @@ from eddy_pump.criteria import load_criteria, require_ruled  # noqa: E402
 
 DRAWS = REPO / "data/labels/draws"
 STUDY_BATCHES, STUDY_REVIEWS = L.STUDY_BATCHES, L.STUDY_REVIEWS
-LEGACY_REVIEW_COLS = ["review_id", "row_index", "candidate_id", "pool_id", "criterion_version", "role", "decision",
-                      "supersedes_review_id", "key_wmo", "key_cycle", "key_pres", "sheet_sha256", "event", "WMO",
-                      "CYCLE_NUMBER", "PRES_ADJUSTED", "LABEL", "batch_id", "rank", "tier", "sampling_mode", "stratum",
-                      "control_arm", "blind", "SAMPLE_ID", "src", "score"]
+BASE_REVIEW_COLS = ["review_id", "row_index", "candidate_id", "pool_id", "criterion_version", "role", "decision",
+                    "supersedes_review_id", "key_wmo", "key_cycle", "key_pres", "sheet_sha256", "event", "WMO",
+                    "CYCLE_NUMBER", "PRES_ADJUSTED", "LABEL", "batch_id", "rank", "tier", "sampling_mode", "stratum",
+                    "control_arm", "blind", "SAMPLE_ID", "src", "score"]
 STUDY_EXTRA_COLS = ["inclusion_probability", "design_stratum", "study_id", "spec_id", "REF_LABEL", "previously_judged"]
 
 
@@ -122,18 +121,9 @@ def session_block(rec: dict, wp: pathlib.Path, kp: pathlib.Path, ws: pd.DataFram
     def ci(k, n):
         return [float(_beta.ppf(0.025, k + 0.5, n - k + 0.5)), float(_beta.ppf(0.975, k + 0.5, n - k + 0.5))] if n else None
 
-    # A control is read against its STANDING verdict: a b6 verdict the ledger's own re-looks later
-    # overturned (direct_flips.csv) says nothing about today's reviewer. The first batch drew its
-    # controls before this was understood; the record reports both readings.
-    is_b6 = ctrl.get("criterion") == "phys_obduction_letter_b6"
+    # A control is read against its STANDING verdict as the label table records it. There is no
+    # separate re-look layer that could overturn it, so no verdict is flipped.
     flipped_keys: set = set()
-    if is_b6:
-        # direct_flips.csv carries LEGACY candidate ids (legacy_letter_v1/...); the key carries the study's.
-        # Join through the legacy reviews to the (WMO, cycle, level) triple, which both share.
-        fl = pd.read_csv(REPO / "data/labels/audit/direct_flips.csv")
-        Rl = L.legacy_only(L.load_reviews())
-        fk = Rl[Rl.candidate_id.isin(fl.candidate_id)][["key_wmo", "key_cycle", "key_pres"]].drop_duplicates()
-        flipped_keys = set(zip(fk.key_wmo.astype(int), fk.key_cycle.astype(int), fk.key_pres.astype(int)))
     m["_k"] = list(zip(m.WMO.astype(int), m.CYCLE_NUMBER.round().astype(int), m.PRES_ADJUSTED.round().astype(int)))
     ctr = {}
     for arm in B.CONTROL_STRATA:
@@ -146,23 +136,11 @@ def session_block(rec: dict, wp: pathlib.Path, kp: pathlib.Path, ws: pd.DataFram
     if ref is not None and pos["n"]:
         ctr[B.POS_CTRL]["reference"] = {"k": ref[0], "n": ref[1], "what": ref[2]}
         ctr[B.POS_CTRL]["fisher_p_vs_reference"] = float(fisher_exact([[pos["accepted"], pos["n"] - pos["accepted"]], [ref[0], ref[1] - ref[0]]])[1])
-    if is_b6:
-        import build_batches as BB
-        for arm, dec in ((B.POS_CTRL, 1), (B.NEG_CTRL, 0)):
-            h = BB.blind_rejudgement_history(dec)
-            a = ctr[arm]
-            a["blind_history"] = h
-            if a["n"]:
-                a["fisher_p_vs_blind_history"] = float(fisher_exact([[a["accepted"], a["n"] - a["accepted"]], [h["k"], h["n"] - h["k"]]])[1])
-            if a["standing"]["n"]:
-                s_ = a["standing"]
-                a["fisher_p_vs_blind_history_standing"] = float(fisher_exact([[s_["accepted"], s_["n"] - s_["accepted"]], [h["k"], h["n"] - h["k"]]])[1])
-        ctr[B.POS_CTRL]["power_note"] = "n = 20 per arm sees a collapse, not a moderate drift; pool the arms across batches before reading strictness"
     ctr[B.NEG_CTRL]["ceiling"] = rec["controls"]["negative"].get("ceiling", 0.20)
     ctr[B.NEG_CTRL]["ceiling_note"] = "display only; at equality nothing fires — the test is Fisher against the negatives' own blind history"
     hi_neg = m[(m.stratum == B.NEG_CTRL) & (m.score >= 0.5)]
     ctr[B.NEG_CTRL]["with_score_above_0p5"] = {"n": int(len(hi_neg)), "accepted": int((hi_neg.LABEL == 1).sum()),
-                                               "note": "a rejected candidate the classifier calls likely is a plausible legacy miss, not a control"}
+                                               "note": "a rejected candidate the classifier calls likely is a plausible detector miss, not a control"}
     out["controls"] = ctr
     t = m[(m.stratum == B.TARGET) & m.LABEL.isin([0, 1])]
     out["target_by_stratum"] = {s: {"n": int(len(g)), "accepted": int(g.LABEL.sum())} for s, g in t.groupby("src")}
@@ -250,7 +228,7 @@ def main() -> None:
         "row_index": np.arange(len(m)),
         "candidate_id": m.candidate_id,
         "pool_id": rec["pool_id"], "criterion_version": rec["criterion_version"], "role": rec["role"],
-        # 0 / 1 / 2 as the legacy layer records them (2 = uncertain, a label but not a decision;
+        # 0 / 1 / 2 as the label table records them (2 = uncertain, a label but not a decision;
         # every rate filters isin([0, 1]) and labelled_keys counts it as judged)
         "decision": pd.array([int(x) if x in (0, 1, 2) else pd.NA for x in m.LABEL], dtype="Int8"),
         "supersedes_review_id": pd.array([None] * len(m), dtype="string"),
@@ -268,7 +246,7 @@ def main() -> None:
         "study_id": rec["study_id"], "spec_id": rec["spec_id"],
         "REF_LABEL": m.REF_LABEL.astype(float) if "REF_LABEL" in m.columns else np.nan,
         "previously_judged": m.previously_judged.fillna(False).astype(bool) if "previously_judged" in m.columns else False,
-    })[LEGACY_REVIEW_COLS + STUDY_EXTRA_COLS]
+    })[BASE_REVIEW_COLS + STUDY_EXTRA_COLS]
     for c in ("supersedes_review_id", "tier", "src", "stratum", "control_arm", "design_stratum"):
         R[c] = R[c].astype(object).where(R[c].notna(), None)
 
@@ -278,7 +256,7 @@ def main() -> None:
             raise SystemExit(f"{bid} is already in the study layer — pass --replace to re-ingest")
         prev_sha = set(old.loc[old.batch_id == bid, "sheet_sha256"])
         if prev_sha != {sheet_sha}:
-            raise SystemExit(f"{bid}: the sheet's bytes changed since it was ingested ({prev_sha} -> {sheet_sha}); the ledger is "
+            raise SystemExit(f"{bid}: the sheet's bytes changed since it was ingested ({prev_sha} -> {sheet_sha}); the label table is "
                              f"append-only — a re-labelled sheet is a NEW batch id whose rows supersede, never a replacement")
         old = old[old.batch_id != bid]   # same bytes: the session read is re-issued, the review rows are identical
     allR = pd.concat([old, R], ignore_index=True) if old is not None else R
@@ -295,16 +273,14 @@ def main() -> None:
         "sampling": {"mode": rec["sampling"]["mode"], "draw": rec["sampling"]["draw"], "design": rec["sampling"]["design"],
                      "frame": rec["sampling"]["frame"], "inclusion_probability": "per review row (`inclusion_probability`), n_h/N_h within stratum",
                      "has_own_stratum_column": True},
-        "legacy": {"tier": None, "precedence_rank": None, "nitrate_rank": None, "in_drifted_list": False,
-                   "random_session_index": None, "priority_index": None, "is_adjudication": False},
         "blind": True, "answer_key_batch": str(kp.relative_to(REPO)), "derived_from": None, "invalidated": None,
         "session": sess,
     }
     raw = yaml.safe_load(STUDY_BATCHES.read_text()) if STUDY_BATCHES.exists() else {"batches": []}
     raw["batches"] = [b for b in raw["batches"] if b["batch_id"] != bid] + [batch]
     STUDY_BATCHES.write_text(
-        "# data/labels/study_batches.yaml -- the study layer of the ledger: one record per labelled study sheet.\n"
-        "# BUILT by production/ingest_study_batch.py from the draw records and the labelled sheets; never edited by hand.\n"
+        "# data/labels/study_batches.yaml -- the study label table: one record per labelled study sheet.\n"
+        "# BUILT by pipeline/ingest_batch.py from the draw records and the labelled sheets; never edited by hand.\n"
         + yaml.safe_dump(raw, sort_keys=False, allow_unicode=True, width=110), encoding="utf-8")
     labelled = {"batch_id": bid, "ingested": batch["ingested"], "worksheet_mtime": ws_mtime, "anchor": anchor,
                 "labelled_sheet": {"path": str(frozen), "sha256": sheet_sha},
@@ -314,7 +290,7 @@ def main() -> None:
     batch["worksheet_mtime"] = ws_mtime
     (DRAWS / f"{bid}.labelled.yaml").write_text(
         f"# data/labels/draws/{bid}.labelled.yaml -- the session read and the hashes of the labelled sheet. BUILT by\n"
-        f"# production/ingest_study_batch.py; never edited by hand.\n"
+        f"# pipeline/ingest_batch.py; never edited by hand.\n"
         + yaml.safe_dump(labelled, sort_keys=False, allow_unicode=True, width=110, default_flow_style=False), encoding="utf-8")
     (DRAWS / "LABELLED_SHA256").write_text(
         "# provenance of the labelled study batches -- do not edit by hand\n"

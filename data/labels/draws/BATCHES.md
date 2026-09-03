@@ -1,6 +1,6 @@
 # The study's labelling batches — built 2026-08-27
 
-Built by `production/build_batches.py`; the design is `eddy_pump.batches`. Worksheets, keys and panels are under `results/net_carbon_v1/labeling/<batch_id>/` (not in Git); the draw records beside this page are the ledger's input when a sheet comes back labelled.
+Built by `pipeline/draw_batch.py`; the design is `eddy_pump.batches`. Worksheets, keys and panels are under `results/net_carbon_v1/labeling/<batch_id>/` (not in Git); the draw records beside this page are the ledger's input when a sheet comes back labelled.
 
 | batch | role | rows | of which science / controls | hours | expected precision | gate before labelling |
 |---|---|---:|---|---:|---|---|
@@ -13,14 +13,14 @@ Built by `production/build_batches.py`; the design is `eddy_pump.batches`. Works
 
 ```
 make review BATCH=results/net_carbon_v1/labeling/<batch_id>/<batch_id>.csv   # the keyboard app, blind
-python production/build_batches.py --report results/net_carbon_v1/labeling/calib_obduction_b6/calib_obduction_b6.csv
+python pipeline/draw_batch.py --report results/net_carbon_v1/labeling/calib_obduction_b6/calib_obduction_b6.csv
 ```
 
 The worksheet carries the key, the position and the coordinates — nothing else. The answer key beside it (`ANSWER_KEY_do_not_open.csv`) is opened by `argopod session` only once the sheet is finished.
 
 ## `rate_obduction_01` — the allocation
 
-Planning base rate 0.1366 (the upward direct sample's own rate, 234/1713 on the whole-Letter-pool frame); target variance 0.000109; held strata contribute 5.66e-07, the open draw 9.87e-05. Neyman against proportional at the same n: ×0.80. The coverage report's budget for this design was 387 panels.
+Planning base rate 0.1366; target variance 0.000109; the open draw contributes 9.87e-05. Neyman against proportional at the same n: ×0.80. (Frozen draw record; the held region it also drew is no longer credited by the rate — the open strata below are the sample.)
 
 | stratum | N | floats | score range | planned p | n | π = n/N |
 |---|---:|---:|---|---:|---:|---:|
@@ -35,19 +35,10 @@ Planning base rate 0.1366 (the upward direct sample's own rate, 234/1713 on the 
 | open|d8 | 17,488 | 1,406 | 0.0518–0.1612 | 0.261 | 99 | 0.00566 |
 | open|d9 | 16,916 | 1,201 | 0.1612–0.9983 | 0.633 | 106 | 0.00627 |
 
-Held at their direct sample:
-
-| stratum | N | n direct | accepted | deff |
-|---|---:|---:|---:|---:|
-| letter_pool_1p96|<=200 | 4,931 | 582 | 35 | 1.04 |
-| letter_pool_1p96|200-260 | 4,777 | 578 | 78 | 1.45 |
-| letter_pool_1p96|260-400 | 2,158 | 232 | 51 | 1.48 |
-| letter_pool_1p96|400-600 | 1,493 | 158 | 42 | 1.11 |
-| letter_pool_1p96|600-1000 | 1,338 | 163 | 28 | 1.87 |
 
 ## `rate_subduction_01` — the allocation
 
-Planning base rate 0.1366 (the upward direct sample's own rate, 234/1713 on the whole-Letter-pool frame (the downward pool has no direct sample of its own)); target variance 0.000109; held strata contribute 0, the open draw 9.92e-05. Neyman against proportional at the same n: ×0.80. The coverage report's budget for this design was 453 panels.
+Planning base rate 0.1366; target variance 0.000109; the open draw contributes 9.92e-05. Neyman against proportional at the same n: ×0.80. (The downward pool is sampled whole; no held region.)
 
 | stratum | N | floats | score range | planned p | n | π = n/N |
 |---|---:|---:|---|---:|---:|---:|

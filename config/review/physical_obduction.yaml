@@ -6,12 +6,11 @@
 #
 #   make review BATCH=results/net_carbon_v1/labeling/rate_obduction_01/rate_obduction_01.csv
 #
-# which exports ARGOPOD_RESIDUAL_CACHE from data/candidates/paper/CACHE_IDENTITY.json.
+# which exports ARGOPOD_RESIDUAL_CACHE from data/candidates/net_carbon_v1/CACHE_IDENTITY.json.
 #
 # THE PANEL IS PART OF THE CRITERION. `phys_net_carbon_v1` (config/criteria.yaml) shows the two
 # physical channels for a physical pool — AOU and absolute salinity — with the profile, the
-# pressure-space residual and the density row when the sidecar exists. The Letter's four-channel
-# panel is the historical instrument; this is the study's.
+# pressure-space residual and the density row when the sidecar exists.
 #
 # `paths.candidates` exists only so argopod has a worksheet directory to default to; every study
 # batch is passed explicitly with --batch and lives under results/net_carbon_v1/labeling/.

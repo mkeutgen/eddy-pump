@@ -8,11 +8,9 @@
 # Slow steps: verify-candidates / freeze-candidates ~36 min, features ~54 min. The rest: seconds.
 # Targets: verify-candidates freeze-candidates features scores draw-batch review calibrate ingest rates
 #
-# NOTE (freshly seeded, 2026-09-03): the scripts are the six pipeline steps under pipeline/. The
-# labelling loop (draw-batch, ingest) and the rate report still read the pre-study label layer and
-# will not run end to end until the "one label layer" step (docs/PLAN.md) rewrites them. Today
-# verify-candidates, freeze-candidates and features run end to end; scores/draw-batch/ingest/rates
-# are the skeleton the next step wires.
+# The whole pipeline runs on the study's one label table (data/labels/study_reviews.parquet +
+# study_batches.yaml + draws/*.yaml). verify-candidates / freeze-candidates / features need the
+# bound fleet cache; the rest run from the label table and the saved lists.
 
 SAVED := data/candidates/net_carbon_v1
 OUT   := results/net_carbon_v1
@@ -20,8 +18,6 @@ AUD   := data/labels/audit
 IDENT := data/candidates/net_carbon_v1/CACHE_IDENTITY.json
 # The six saved candidate lists (full tables); every label points at a row of them.
 POOLS := $(wildcard data/candidates/net_carbon_v1/*.parquet)
-# The raw label sheets: read-only, outside git (the data deposit's labels_raw.tar).
-LABEL_SHEETS ?= $(HOME)/Documents/obduction-eddy-pump/results/obduction/labeling
 # The bound fleet cache, read from the identity file, so the labelling app draws panels from the
 # same grids the candidates were detected on. Get it with scripts/fetch_caches.sh.
 BOUND_CACHE = $(shell $(PY) -c 'import json;print(json.load(open("$(IDENT)"))["cache"]["path"])')

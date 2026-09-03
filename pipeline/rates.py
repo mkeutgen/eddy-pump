@@ -2,12 +2,12 @@
 """The rate per physical pool from the label table, with its denominator and error bar.
 
 reads  data/labels/{study_reviews.parquet, study_batches.yaml} through eddy_pump.labels,
-       data/labels/audit/coverage_by_pool_and_stratum.csv, data/labels/draws/*.yaml,
-       data/candidates/net_carbon_v1/<pool>.json (the pool size)
+       data/labels/draws/*.yaml, data/candidates/net_carbon_v1/<pool>.json (the pool size)
 writes data/labels/audit/{rate_status.csv, RATE_STATUS.md}
-Open region: the weighted mean of the batch's target verdicts with 1/π weights. Held region (upward
-limb): the old direct sample. Pool rate: the two by their share; the denominator is candidate levels.
-Uncertain verdicts are excluded and counted. Session flags are reported, never used as a filter.
+The rate is the weighted mean of the drawn sample's target verdicts with 1/π weights, over the
+candidate levels the sample covers. Where a pool is only partly sampled, the uncovered remainder is
+reported, never extrapolated onto. Uncertain verdicts are excluded and counted. Session flags are
+reported, never used as a filter.
 """
 
 from __future__ import annotations
@@ -28,31 +28,16 @@ from eddy_pump.criteria import active_criterion  # noqa: E402
 from eddy_pump.manifest import load_manifest  # noqa: E402
 
 OUT = REPO / "data/labels/audit"
-COVERAGE = OUT / "coverage_by_pool_and_stratum.csv"
 DRAWS = REPO / "data/labels/draws"
 SAVED = REPO / "data/candidates/net_carbon_v1"   # the saved candidate lists; the sidecar carries the row count
 TARGET_REL = 0.15
 SECONDS_PER_PANEL = 28.7
-HELD_FRAME = "letter_pool_1p96"
-
-
-def held_region(pool_id: str) -> dict | None:
-    cov = pd.read_csv(COVERAGE)
-    h = cov[(cov.pool_id == pool_id) & (cov.n_direct_candidates > 0)]
-    if h.empty:
-        return None
-    N = int(h.N_candidates.sum())
-    p = float(h.n_direct_accepted.sum() / h.n_direct_candidates.sum())
-    w = h.N_candidates / N
-    se = float(np.sqrt(((w ** 2) * h.direct_rate_se_float_bootstrap ** 2).sum()))
-    return {"N": N, "n": int(h.n_direct_candidates.sum()), "accepted": int(h.n_direct_accepted.sum()), "rate": p, "se": se,
-            "rate_resolved": float(h.n_direct_accepted_after_relooks.sum() / h.n_direct_candidates.sum()),
-            "criterion": "phys_obduction_letter_b6", "frame": HELD_FRAME}
 
 
 def main() -> None:
     import yaml
 
+    OUT.mkdir(parents=True, exist_ok=True)
     study = load_manifest()
     crit = active_criterion()
     rows, md = [], []
@@ -76,53 +61,44 @@ def main() -> None:
         # bootstrap is kept beside it as the labelled conservative sensitivity
         res = B.stratified_rate(A.decision.to_numpy(float), A.inclusion_probability.to_numpy(float), A.design_stratum.to_numpy(),
                                 A.key_wmo.to_numpy(), N_h, n_boot=3000, seed=1)
-        held = held_region(pool.pool_id)
         N_pool = json.loads((SAVED / f"{pool.event_type}.json").read_text())["rows"]
-        if held:
-            assert N_open + held["N"] == N_pool, (N_open, held["N"], N_pool)
-            wo, wh = N_open / N_pool, held["N"] / N_pool
-            p_pool = wo * res["rate"] + wh * held["rate"]
-            se_pool = float(np.sqrt(wo ** 2 * res["se_design"] ** 2 + wh ** 2 * held["se"] ** 2))
-            se_pool_naive = float(np.sqrt(wo ** 2 * res["se_naive_float_bootstrap"] ** 2 + wh ** 2 * held["se"] ** 2))
-            p_pool_resolved = wo * res["rate"] + wh * held["rate_resolved"]
-        else:
-            assert N_open == N_pool
-            wo, wh = 1.0, 0.0
-            p_pool, se_pool, se_pool_naive, p_pool_resolved = res["rate"], res["se_design"], res["se_naive_float_bootstrap"], res["rate"]
+        # The rate is over the region the sample actually covers (N_open). N_open == N_pool when the
+        # whole pool is sampled (the downward limb); when only part is (the upward limb, whose former
+        # held region awaits a fresh draw), the uncovered remainder is reported, never extrapolated.
+        unsampled = N_pool - N_open
+        p_pool, se_pool, se_pool_naive = res["rate"], res["se_design"], res["se_naive_float_bootstrap"]
         hw_rel = B.Z * se_pool / p_pool
         v_target = (TARGET_REL * p_pool / B.Z) ** 2
-        v_held = wh ** 2 * held["se"] ** 2 if held else 0.0
-        v_open_now = wo ** 2 * res["se_design"] ** 2
-        n_needed = int(np.ceil(res["n"] * v_open_now / max(v_target - v_held, 1e-12))) if v_target > v_held else None
+        v_open_now = res["se_design"] ** 2
+        n_needed = int(np.ceil(res["n"] * v_open_now / max(v_target, 1e-12))) if v_target > 0 else None
         more = max(0, n_needed - res["n"]) if n_needed else None
-        # the drift band: the pool rate if the whole session had read like the first half / the second half
+        # the drift band: the rate if the whole session had read like the first half / the second half
         halves = {}
         for b, l in labelled.items():
             th = l["session"].get("target_halves")
             if th:
                 for side in ("first", "second"):
-                    ph = sum(N_h[s] / N_open * (th["by_stratum"][s][side] if th["by_stratum"][s][side] is not None else 0.0) for s in N_h)
-                    halves[side] = wo * ph + wh * (held["rate"] if held else 0.0)
+                    halves[side] = sum(N_h[s] / N_open * (th["by_stratum"][s][side] if th["by_stratum"][s][side] is not None else 0.0) for s in N_h)
         sess = {b: l["session"] for b, l in labelled.items()}
         flags = []
         for b, s in sess.items():
             if s.get("trend_p_mann_whitney") is not None and s["trend_p_mann_whitney"] < 0.05:
                 flags.append(f"{b}: acceptance fell with position (Mann-Whitney p = {s['trend_p_mann_whitney']:.3f}; "
                              f"{s['position'][0]['accept']:.0%} in the first quarter, {s['position'][-1]['accept']:.0%} in the last; "
-                             f"pool rate would read {halves.get('first', float('nan')):.3f} like the first half, {halves.get('second', float('nan')):.3f} like the second)")
+                             f"the rate would read {halves.get('first', float('nan')):.3f} like the first half, {halves.get('second', float('nan')):.3f} like the second)")
             pc = s["controls"]["pos_ctrl"]
             if pc.get("blind_history"):
                 bh, stg = pc["blind_history"], pc["standing"]
                 verdict = "read strict" if pc.get("fisher_p_vs_blind_history_standing", 1) < 0.05 else "within the instrument's own noise"
                 flags.append(f"{b}: positive controls {pc['accepted']}/{pc['n']} — {stg['accepted']}/{stg['n']} on standing verdicts "
-                             f"({pc['overturned_in_ledger']} were b6 accepts the ledger later overturned) — against the blind re-judgement history "
+                             f"({pc['overturned_in_ledger']} earlier accepts were later overturned) — against the blind re-judgement history "
                              f"{bh['k']}/{bh['n']} ({bh['k'] / bh['n']:.0%}): Fisher p = {pc.get('fisher_p_vs_blind_history_standing', float('nan')):.2f} — {verdict}")
             nc = s["controls"]["neg_ctrl"]
             if nc.get("blind_history"):
                 bh = nc["blind_history"]
                 flags.append(f"{b}: negative controls {nc['accepted']}/{nc['n']} against their blind history {bh['k']}/{bh['n']} "
                              f"({bh['k'] / bh['n']:.0%}): Fisher p = {nc.get('fisher_p_vs_blind_history', float('nan')):.2f}"
-                             + (f"; {nc['with_score_above_0p5']['accepted']} of the {nc['with_score_above_0p5']['n']} with score >= 0.5 accepted (plausible legacy misses)"
+                             + (f"; {nc['with_score_above_0p5']['accepted']} of the {nc['with_score_above_0p5']['n']} with score >= 0.5 accepted (plausible detector misses)"
                                 if nc.get("with_score_above_0p5", {}).get("n") else ""))
             elif nc["n"] and nc["accepted"] / nc["n"] > nc["ceiling"]:
                 flags.append(f"{b}: negative controls {nc['accepted']}/{nc['n']} above the {nc['ceiling']:.0%} ceiling — read loose")
@@ -131,38 +107,37 @@ def main() -> None:
         if anchor and anchor.get("worksheet_mtime"):
             t0 = pd.Timestamp(anchor["worksheet_mtime"]); t1 = pd.Timestamp(next(iter(labelled.values()))["worksheet_mtime"])
             pace = float((t1 - t0).total_seconds() / next(iter(labelled.values()))["rows"])
-        row = {"pool_id": pool.pool_id, "status": "measured", "criterion_version": crit.id, "denominator": f"candidate levels of the pool ({N_pool:,})",
+        denom = (f"candidate levels of the pool ({N_pool:,})" if unsampled == 0 else
+                 f"candidate levels sampled ({N_open:,}) of the pool's {N_pool:,}; {unsampled:,} not yet sampled")
+        row = {"pool_id": pool.pool_id, "status": "measured", "criterion_version": crit.id, "denominator": denom,
                "batches": ",".join(sorted(recs)), "n_target_decided": res["n"], "floats": res["floats"],
                "uncertain_excluded": int(sum(l["uncertain"] for l in labelled.values())),
                "open_N": N_open, "open_rate": res["rate"], "open_se_design": res["se_design"],
                "open_se_stratified_bootstrap": res["se_stratified_bootstrap"], "open_se_naive_float_bootstrap": res["se_naive_float_bootstrap"],
                "open_design_effect_vs_weighted_iid": res["design_effect_vs_weighted_iid"], "open_zero_count_strata": res["zero_or_full_count_strata"],
-               "held_N": held["N"] if held else 0, "held_rate": held["rate"] if held else np.nan, "held_se": held["se"] if held else np.nan,
-               "held_rate_resolved": held["rate_resolved"] if held else np.nan, "held_criterion": held["criterion"] if held else None,
-               "pool_rate": p_pool, "pool_rate_with_resolved_held": p_pool_resolved, "pool_se": se_pool, "pool_se_naive_float_bootstrap": se_pool_naive,
+               "unsampled_levels": unsampled, "pool_size": N_pool,
+               "pool_rate": p_pool, "pool_se": se_pool, "pool_se_naive_float_bootstrap": se_pool_naive,
                "pool_half_width_95": B.Z * se_pool, "pool_half_width_95_rel": hw_rel,
                "pool_half_width_95_rel_naive": B.Z * se_pool_naive / p_pool,
-               "accepted_levels_estimated": p_pool * N_pool, "target_rel": TARGET_REL, "meets_target": bool(hw_rel <= TARGET_REL),
+               "accepted_levels_estimated": p_pool * N_open, "target_rel": TARGET_REL, "meets_target": bool(hw_rel <= TARGET_REL),
                "drift_band_first_half": halves.get("first"), "drift_band_second_half": halves.get("second"),
                "open_panels_needed_at_realised_variance": n_needed, "open_panels_more": more,
                "hours_more_at_planning_pace": (more * SECONDS_PER_PANEL / 3600) if more is not None else None,
                "realised_seconds_per_panel": pace, "anchor_batch": anchor["batch_id"] if anchor else None,
                "flags": " | ".join(flags)}
         rows.append(row)
-        md.append(f"## `{pool.pool_id}` — {p_pool:.1%} of {N_pool:,} candidate levels, ±{hw_rel:.0%} relative (target ±{TARGET_REL:.0%})\n")
-        md.append(f"Open region ({N_open:,} levels): stratified mean {res['rate']:.4f}, design-based SE {res['se_design']:.4f} "
+        md.append(f"## `{pool.pool_id}` — {p_pool:.1%} of {N_open:,} candidate levels, ±{hw_rel:.0%} relative (target ±{TARGET_REL:.0%})\n")
+        md.append(f"Sampled region ({N_open:,} levels): stratified mean {res['rate']:.4f}, design-based SE {res['se_design']:.4f} "
                   f"(stratified bootstrap {res['se_stratified_bootstrap']:.4f}; the naive float bootstrap {res['se_naive_float_bootstrap']:.4f} is the "
                   f"conservative sensitivity and overstates a stratified draw) on {res['n']} target verdicts over {res['floats']} floats "
                   f"({row['uncertain_excluded']} uncertain excluded; {res['zero_or_full_count_strata']} strata with no accept, floored at the Jeffreys mean "
                   f"in the variance)."
-                  + (f" Held region ({held['N']:,} levels, {held['frame']}): {held['rate']:.4f} ± {held['se']:.4f} from {held['n']} direct verdicts under "
-                     f"{held['criterion']} — the uniform sample's FIRST verdicts; after the Letter's score-targeted re-looks it reads {held['rate_resolved']:.4f} "
-                     f"(pool {p_pool_resolved:.4f}). Accepted as direct on the open pool-identity ruling." if held else "") + "\n")
-        md.append(f"Pool: **{p_pool:.4f} ± {B.Z * se_pool:.4f}** (≈ {p_pool * N_pool:,.0f} accepted candidate LEVELS — not events; a cycle-level "
-                  f"estimand needs its own denominator). Sampling precision only, at the session-average instrument. "
-                  + (f"At the variance realised, the open region needs about **{n_needed} target panels** for ±{TARGET_REL:.0%}: {more} more"
+                  + (f" {unsampled:,} of the pool's {N_pool:,} levels are not yet in a probability sample, to be drawn under the study's criterion." if unsampled else "") + "\n")
+        md.append(f"Rate: **{p_pool:.4f} ± {B.Z * se_pool:.4f}** (≈ {p_pool * N_open:,.0f} accepted candidate LEVELS in the sampled region — not events; a "
+                  f"cycle-level estimand needs its own denominator). Sampling precision only, at the session-average instrument. "
+                  + (f"At the variance realised, the sample needs about **{n_needed} target panels** for ±{TARGET_REL:.0%}: {more} more"
                      + (f" ({more * SECONDS_PER_PANEL / 3600:.1f} h at the planning pace" + (f", {more * pace / 3600:.1f} h at the realised {pace:.0f} s/panel)" if pace else ")") if more else "") + "." if n_needed else "")
-                  + (f" **Drift band**: the pool rate would read {halves['first']:.3f} if the whole session had read like its first half, "
+                  + (f" **Drift band**: the rate would read {halves['first']:.3f} if the whole session had read like its first half, "
                      f"{halves['second']:.3f} like its second — a systematic term the sampling interval does not contain." if halves else "") + "\n")
         if flags:
             md.append("Session flags (recorded, never a filter):\n" + "".join(f"- {f}\n" for f in flags))
@@ -174,9 +149,9 @@ def main() -> None:
     measured = T[T.status == "measured"]
     nxt = ("the downward limb (no analysis batch yet)" if len(measured) < 2 else
            f"`{measured.sort_values('pool_half_width_95_rel', ascending=False).iloc[0].pool_id}` (the wider half-width)")
-    page = (f"# RATE STATUS — the physical rates from the ledger *({B.stamp()[:10]})*\n\n"
-            f"Producer: `production/rate_report.py`. Criterion `{crit.id}`. Every rate is a weighted Hájek mean of human verdicts with "
-            f"declared inclusion probabilities; the denominator is the pool's candidate levels. The next batch goes to "
+    page = (f"# RATE STATUS — the physical rates from the human labels *({B.stamp()[:10]})*\n\n"
+            f"Producer: `pipeline/rates.py`. Criterion `{crit.id}`. Every rate is a weighted Hájek mean of human verdicts with "
+            f"declared inclusion probabilities; the denominator is the candidate levels the sample covers. The next batch goes to "
             f"**{nxt}**.\n\n" + "\n".join(md))
     (OUT / "RATE_STATUS.md").write_text(page, encoding="utf-8")
     print(T.drop(columns=["flags"]).T.to_string())

@@ -32,7 +32,7 @@ on 2026-09-01). The frozen answers are `data/labels/draws/<batch>.reference.yaml
 ## Every session
 
 ```bash
-python production/build_batches.py --repass calib_<limb>_…   # a fresh blind copy of the 42 panels
+python pipeline/draw_batch.py --repass calib_<limb>_…   # a fresh blind copy of the 42 panels
 make review BATCH=results/net_carbon_v1/labeling/<copy>/<copy>.csv
 make calibrate SHEET=<the labelled copy>          # must PASS: kappa > 0.6, base rate on target
 make review BATCH=results/net_carbon_v1/labeling/<batch>/<batch>.csv   # then the batch, blind
@@ -62,8 +62,8 @@ used to drop a label. Unsure (2) is allowed and is excluded from the rate, count
 ## What the labels become
 
 The rate of a pool is the weighted mean of the accepted labels, each weighted by 1/π, with a
-design-based standard error; its denominator is the pool's candidate levels. On the upward limb the
-region the old labels already cover (the old ≥ 1.96 σ pool) is held at its direct sample and
-combined with the open region by their share of the pool. The classifier's score decides only which
-stratum a panel came from; it never enters the number. The current rates and their error bars are
-`data/labels/audit/RATE_STATUS.md`. An arm stops when its limb is inside ±15 % relative.
+design-based standard error; its denominator is the candidate levels the sample covers. The upward
+rate is the open-region probability sample alone; the former ≥ 1.96 σ region of the pool is not yet
+sampled and awaits a fresh draw under the study's criterion. The classifier's score decides only
+which stratum a panel came from; it never enters the number. The current rates and their error bars
+are `data/labels/audit/RATE_STATUS.md`. An arm stops when its limb is inside ±15 % relative.

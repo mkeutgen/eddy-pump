@@ -61,6 +61,7 @@ of the 42 calibration panels), then `make ingest BATCH=…` and `make rates`. Te
 Models: Opus for day-to-day work; Fable only to orchestrate or to audit a number before it ships;
 every subagent runs on Opus.
 
-Freshly seeded (2026-09-03): the labelling loop and the rate report still carry the old label layer;
-the "one label layer" step in `docs/PLAN.md` rewrites them. Until then, `verify-candidates`,
-`freeze-candidates` and `features` run end to end.
+The whole pipeline runs on the study's one label table (`study_reviews.parquet` +
+`study_batches.yaml` + `draws/*.yaml`); there is no old label layer in the code. The upward rate is
+the open region alone — the old ≥ 1.96 σ region of the pool awaits a fresh draw under the study's
+criterion (`docs/PLAN.md`).

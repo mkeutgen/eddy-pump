@@ -40,8 +40,8 @@ which panels a human sees first — it never enters a number.
 
 Two rates measured so far (both physical, awaiting an adversarial review):
 
-- **upward** 12.9 % of 186,275 candidate levels, ±16 % relative
-- **downward** 18.7 % of 133,307, ±14 % relative
+- **upward** 12.9 % of the open region (171,578 of the pool's 186,275 candidate levels), ±17 % relative — the rest of the pool awaits a fresh draw
+- **downward** 18.7 % of 133,307 candidate levels, ±14 % relative
 
 Every rate names its denominator; a uniform-random sample measures a rate, a score-ranked one never
 does. "Complete" always says against which pool.
