@@ -1,0 +1,196 @@
+# provenance of the study's candidate scores -- built by production/score_study_pools.py; do not edit
+{
+  "study_id": "net_carbon_v1",
+  "built": "2026-09-02T21:29:01",
+  "seed": 0,
+  "model": "sklearn HistGradientBoostingClassifier(max_iter=300, lr=0.05, leaves=31, l2=1.0)",
+  "features": {
+    "n": 168,
+    "excluded_ids": [
+      "CYCLE_NUMBER",
+      "EVENT_TYPE",
+      "PRES_ADJUSTED",
+      "WMO",
+      "abs_latitude",
+      "latitude",
+      "longitude",
+      "pool_id",
+      "spec_id"
+    ]
+  },
+  "upward": {
+    "pool_rows": 186275,
+    "labelled_rows": 4824,
+    "labels_by_source": {
+      "training_walk": 2437,
+      "uniform_b6": 2387
+    },
+    "accepted": 1092,
+    "floats": 492,
+    "cv": "StratifiedGroupKFold(5) grouped by float",
+    "auc_oof_on_uniform_reviews": 0.8839291198329342,
+    "rho_oof_on_uniform_reviews": 0.5765719339092102,
+    "uniform_reviews": 2387,
+    "decile_calibration_on_uniform_reviews": {
+      "0": {
+        "n": 239,
+        "observed": 0.0126,
+        "predicted": 0.0004
+      },
+      "1": {
+        "n": 239,
+        "observed": 0.0167,
+        "predicted": 0.0008
+      },
+      "2": {
+        "n": 238,
+        "observed": 0.0084,
+        "predicted": 0.0014
+      },
+      "3": {
+        "n": 239,
+        "observed": 0.0209,
+        "predicted": 0.0022
+      },
+      "4": {
+        "n": 239,
+        "observed": 0.0126,
+        "predicted": 0.0036
+      },
+      "5": {
+        "n": 238,
+        "observed": 0.0252,
+        "predicted": 0.0058
+      },
+      "6": {
+        "n": 239,
+        "observed": 0.046,
+        "predicted": 0.0102
+      },
+      "7": {
+        "n": 238,
+        "observed": 0.1303,
+        "predicted": 0.0197
+      },
+      "8": {
+        "n": 239,
+        "observed": 0.1632,
+        "predicted": 0.0568
+      },
+      "9": {
+        "n": 239,
+        "observed": 0.5816,
+        "predicted": 0.5123
+      }
+    }
+  },
+  "downward": {
+    "pool_rows": 133307,
+    "trained_on": "the companion's reviewed R-detections joined to the active pool by key; verified Category 1/2 -> 1, detected-but-not-verified or Category 0 -> 0; criterion phys_companion_2024; training only (hard rule 5)",
+    "labelled_rows": 13543,
+    "labels_by_source": {
+      "companion_detected_not_verified": 9327,
+      "companion_verified": 3983,
+      "companion_rejected": 233
+    },
+    "accepted": 3983,
+    "floats": 532,
+    "cv": "StratifiedGroupKFold(5) grouped by float",
+    "auc_oof_on_companion_labels": 0.8603326690736885,
+    "rho_oof_on_companion_labels": 0.5916455290686979,
+    "decile_calibration_on_companion_labels": {
+      "0": {
+        "n": 1355,
+        "observed": 0.0081,
+        "predicted": 0.016
+      },
+      "1": {
+        "n": 1354,
+        "observed": 0.0281,
+        "predicted": 0.0362
+      },
+      "2": {
+        "n": 1354,
+        "observed": 0.0421,
+        "predicted": 0.062
+      },
+      "3": {
+        "n": 1354,
+        "observed": 0.1078,
+        "predicted": 0.098
+      },
+      "4": {
+        "n": 1355,
+        "observed": 0.1668,
+        "predicted": 0.1509
+      },
+      "5": {
+        "n": 1354,
+        "observed": 0.2578,
+        "predicted": 0.2295
+      },
+      "6": {
+        "n": 1354,
+        "observed": 0.3545,
+        "predicted": 0.3355
+      },
+      "7": {
+        "n": 1354,
+        "observed": 0.5,
+        "predicted": 0.4703
+      },
+      "8": {
+        "n": 1354,
+        "observed": 0.6558,
+        "predicted": 0.6432
+      },
+      "9": {
+        "n": 1355,
+        "observed": 0.8199,
+        "predicted": 0.8283
+      }
+    },
+    "transfer_comparison": {
+      "what": "the upward model through the sign alignment, kept as score_transfer",
+      "auc_verified_vs_rejected": 0.77863645816609,
+      "auc_verified_vs_pool": 0.7191158901131449
+    },
+    "alignment": {
+      "flipped": [
+        "ABS_SAL_fine_dev_5",
+        "ABS_SAL_fine_dev_6",
+        "ABS_SAL_fine_dev_7",
+        "ABS_SAL_prof_5",
+        "AOU_fine_dev_10",
+        "AOU_fine_dev_4",
+        "AOU_fine_dev_5",
+        "AOU_fine_dev_6",
+        "AOU_fine_dev_7",
+        "AOU_fine_dev_8",
+        "AOU_fine_dev_9",
+        "AOU_rel_10",
+        "AOU_rel_5",
+        "AOU_rel_6",
+        "AOU_res_at_det"
+      ],
+      "swapped_and_negated": [
+        "ABS_SAL_max_res",
+        "ABS_SAL_min_res",
+        "AOU_max_res",
+        "AOU_min_res"
+      ],
+      "n_flipped": 15,
+      "n_swapped": 4
+    },
+    "companion_in_pool": {
+      "verified": 3983,
+      "rejected": 233,
+      "unlabelled_pool": 129079
+    },
+    "note": "trained on the companion's labels (training only); no study-criterion subduction label exists yet"
+  },
+  "files": {
+    "physical_obduction": "4cf5d07b43617ba62d60a4f776dc268c28b15b041b8c94f0535d3bdbb4fa5491",
+    "physical_subduction": "6b8f5b9ac5d6981f19a42013358001ad26891613f9aad5859293f4dd33f7a2a7"
+  }
+}

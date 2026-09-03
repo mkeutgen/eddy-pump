@@ -1,0 +1,204 @@
+# data/labels/draws/rate_obduction_01.labelled.yaml -- the session read and the hashes of the labelled sheet. BUILT by
+# production/ingest_study_batch.py; never edited by hand.
+batch_id: rate_obduction_01
+ingested: '2026-09-01T13:24:26-04:00'
+worksheet_mtime: '2026-08-27T12:38:26-04:00'
+anchor:
+  batch_id: calib_obduction_b6
+  worksheet_mtime: '2026-08-27T11:23:15-04:00'
+  kappa: 0.7162162162162161
+labelled_sheet:
+  path: /Users/mk0964/Documents/release/eddy-pump/results/net_carbon_v1/labeling/rate_obduction_01/rate_obduction_01_LABELLED_20260827T165016Z.csv
+  sha256: f3de2cc7acd7fcf54d9a020b8a6bc03b5c7ea24aa0292ba7b1619632435dddb3
+rows: 619
+decided: 616
+accepted: 134
+uncertain: 3
+blank: 0
+session:
+  kind: rate
+  n_rows: 619
+  n_decided: 616
+  n_accepted: 134
+  n_rejected: 482
+  n_uncertain: 3
+  n_blank: 0
+  position:
+  - bin: 1
+    sid_lo: 0.0
+    sid_hi: 155.0
+    n: 154
+    accept: 0.2792207792207792
+  - bin: 2
+    sid_lo: 156.0
+    sid_hi: 309.0
+    n: 154
+    accept: 0.23376623376623376
+  - bin: 3
+    sid_lo: 310.0
+    sid_hi: 463.0
+    n: 154
+    accept: 0.2077922077922078
+  - bin: 4
+    sid_lo: 464.0
+    sid_hi: 618.0
+    n: 154
+    accept: 0.14935064935064934
+  trend_p_mann_whitney: 0.005637480835263657
+  change_point:
+    sample_id: 357.0
+    accept_before: 0.2619718309859155
+    accept_after: 0.15708812260536398
+    p_raw: 0.002119146441749358
+    p_adjusted: 1.0
+    verdict: suggestive
+  key_opened: true
+  warnings:
+  - 3 uncertain — a rising uncertain rate is a fatigue signal
+  - the worksheet already carries `LATITUDE`, `LONGITUDE`, `SAMPLE_ID`, `TIME` — the answer key ANSWER_KEY_do_not_open.csv
+    is the authority, so the worksheet's copy was dropped before the join
+  controls:
+    pos_ctrl:
+      n: 20
+      accepted: 14
+      ci95:
+      - 0.4827717514330278
+      - 0.8638837734128095
+      overturned_in_ledger: 4
+      standing:
+        n: 16
+        accepted: 14
+        ci95:
+        - 0.6558244323748872
+        - 0.9730872097845161
+      reference:
+        k: 223
+        n: 234
+        what: direct accepts surviving the blind re-look flips (data/labels/audit/direct_flips.csv)
+      fisher_p_vs_reference: 0.0007856624706040844
+      blind_history:
+        k: 48
+        n: 61
+        candidates: 59
+        sheets: 6
+        what: 'direct b6 accepts later re-judged BLIND in a later real sheet (target arm; one pair per candidate
+          and sheet): re-accepted / re-judged'
+      fisher_p_vs_blind_history: 0.5438232330091324
+      fisher_p_vs_blind_history_standing: 0.7234772783827293
+      power_note: n = 20 per arm sees a collapse, not a moderate drift; pool the arms across batches before reading
+        strictness
+    neg_ctrl:
+      n: 20
+      accepted: 4
+      ci95:
+      - 0.07152005247873083
+      - 0.4082257625169254
+      overturned_in_ledger: 0
+      standing:
+        n: 20
+        accepted: 4
+        ci95:
+        - 0.07152005247873083
+        - 0.4082257625169254
+      blind_history:
+        k: 4
+        n: 24
+        candidates: 16
+        sheets: 5
+        what: 'direct b6 rejects later re-judged BLIND in a later real sheet (target arm; one pair per candidate
+          and sheet): re-accepted / re-judged'
+      fisher_p_vs_blind_history: 1.0
+      fisher_p_vs_blind_history_standing: 1.0
+      ceiling: 0.2
+      ceiling_note: display only; at equality nothing fires — the test is Fisher against the negatives' own blind
+        history
+      with_score_above_0p5:
+        n: 2
+        accepted: 2
+        note: a rejected candidate the classifier calls likely is a plausible legacy miss, not a control
+  target_by_stratum:
+    open|d0:
+      n: 29
+      accepted: 0
+    open|d1:
+      n: 29
+      accepted: 0
+    open|d2:
+      n: 29
+      accepted: 0
+    open|d3:
+      n: 32
+      accepted: 1
+    open|d4:
+      n: 41
+      accepted: 2
+    open|d5:
+      n: 53
+      accepted: 4
+    open|d6:
+      n: 76
+      accepted: 11
+    open|d7:
+      n: 83
+      accepted: 13
+    open|d8:
+      n: 99
+      accepted: 27
+    open|d9:
+      n: 105
+      accepted: 58
+  target_raw_acceptance_unweighted: 0.2013888888888889
+  target_previously_judged:
+    n: 3
+    accepted: 0
+  target_position_quarters:
+  - quarter: 1
+    n: 144
+    accept: 0.2777777777777778
+  - quarter: 2
+    n: 144
+    accept: 0.20833333333333334
+  - quarter: 3
+    n: 144
+    accept: 0.18055555555555555
+  - quarter: 4
+    n: 144
+    accept: 0.1388888888888889
+  target_halves:
+    first:
+      n: 288
+      accept: 0.24305555555555555
+    second:
+      n: 288
+      accept: 0.1597222222222222
+    by_stratum:
+      open|d0:
+        first: 0.0
+        second: 0.0
+      open|d1:
+        first: 0.0
+        second: 0.0
+      open|d2:
+        first: 0.0
+        second: 0.0
+      open|d3:
+        first: 0.047619047619047616
+        second: 0.0
+      open|d4:
+        first: 0.047619047619047616
+        second: 0.05
+      open|d5:
+        first: 0.04
+        second: 0.10714285714285714
+      open|d6:
+        first: 0.1794871794871795
+        second: 0.10810810810810811
+      open|d7:
+        first: 0.2222222222222222
+        second: 0.07894736842105263
+      open|d8:
+        first: 0.3125
+        second: 0.23529411764705882
+      open|d9:
+        first: 0.660377358490566
+        second: 0.4423076923076923

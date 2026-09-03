@@ -1,0 +1,11 @@
+{
+  "line": "paper",
+  "what": "the residual cache the frozen paper-line keys in this directory were built from. Every run and every anchor of the line recomputes this identity and refuses a cache that does not match (obduction.detect_all.require_bound_cache).",
+  "bound": "2026-08-27T13:32:15+02:00",
+  "argopod": "0.5.0",
+  "cache": {
+    "path": "/Users/mk0964/Documents/release/cache_paper/residual_cache_v4",
+    "fine_grids": 2542,
+    "fine_grids_sha256": "11fce215c7db6cebabfbb0d233d17ed7b6674e388bcfb5b91153449ec35f8299"
+  }
+}

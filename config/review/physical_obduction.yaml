@@ -1,0 +1,34 @@
+# The review-app configuration for the study's UPWARD rate arm (plan step 6).
+#
+# `event: paper_phys` is the cache FLAVOUR of the bound fleet cache ({wmo}_paper_phys_*.parquet),
+# so argopod's grids lookup takes exactly that grid and never falls back to another event's.
+# The cache itself is not written here: serve with the bound cache in the environment,
+#
+#   make review BATCH=results/net_carbon_v1/labeling/rate_obduction_01/rate_obduction_01.csv
+#
+# which exports ARGOPOD_RESIDUAL_CACHE from data/candidates/paper/CACHE_IDENTITY.json.
+#
+# THE PANEL IS PART OF THE CRITERION. `phys_net_carbon_v1` (config/criteria.yaml) shows the two
+# physical channels for a physical pool — AOU and absolute salinity — with the profile, the
+# pressure-space residual and the density row when the sidecar exists. The Letter's four-channel
+# panel is the historical instrument; this is the study's.
+#
+# `paths.candidates` exists only so argopod has a worksheet directory to default to; every study
+# batch is passed explicitly with --batch and lives under results/net_carbon_v1/labeling/.
+
+event: paper_phys
+title: "physical obduction — net_carbon_v1 (AOU positive)"
+
+variables:
+  - {name: AOU, cutoff: 1.50, sign_constraint: positive, require_gradient_check: true}
+  - {name: ABS_SAL, cutoff: 1.50, require_gradient_check: true}
+
+params:
+  extremum_ratio_threshold: 0.0
+
+panel:
+  - {name: AOU, cutoff: 1.50, label: "AOU (μmol/kg) — obduction: POSITIVE bulge"}
+  - {name: ABS_SAL, cutoff: 1.50, label: "Abs. Salinity (g/kg)"}
+
+paths:
+  candidates: ../../results/net_carbon_v1/candidates/physical_obduction.parquet

@@ -1,0 +1,278 @@
+# data/labels/draws/calib_obduction_b6.yaml -- the draw record of one study batch. BUILT by production/build_batches.py;
+# never edited by hand. The sheet and key it hashes live under results/ (not in Git).
+batch_id: calib_obduction_b6
+built: '2026-08-27T16:30:13+02:00'
+builder: production/build_batches.py
+seed: 20260827
+study_id: net_carbon_v1
+pool_id: net_carbon_v1/physical/obduction
+spec_id: v1:31619ba88c252ed8
+event_type: physical_obduction
+criterion_version: phys_net_carbon_v1
+criterion_status: ruled
+cache:
+  path: /Users/mk0964/Documents/release/cache_paper/residual_cache_v4
+  fine_grids: 2542
+  fine_grids_sha256: 11fce215c7db6cebabfbb0d233d17ed7b6674e388bcfb5b91153449ec35f8299
+scores_manifest:
+  path: data/features/net_carbon_v1/SCORES_SHA256
+  sha256: 4674461e115005d31b6be8fa6bd4538e3771d0efcc7e408fb620feb264c8c31e
+  built: '2026-08-27T15:41:42'
+  features_manifest_sha256: d1c80c0c08bc776dd55c6434cd22e19ade23b5a5b3c45794ccbc931beb595052
+role: calibration
+decides: false
+sampling:
+  mode: calibration
+  draw: the frozen reference, every event
+  design: null
+  frame: null
+  inclusion_probability: null
+reference:
+  what: the 42-event calibration reference the reviewer re-labels blind before every session (kappa > 0.6, base
+    rate on target)
+  file: /Users/mk0964/Documents/obduction-eddy-pump/results/obduction/labeling/calibration/calibration_reference.csv
+  sha256: 8b3af4d3bfe130c3df1fcebcd4e1a12dbb08d7f4739605466359f4a22b862146
+  n_events: 42
+  base_rate: 22/42 = 0.524
+  carried_over_as: phys_obduction_letter_b6/anchor
+gate: κ > 0.6 against REF_LABEL and the base rate on target, before every session (production/LABELING_PROTOCOL.md)
+panel_note: the study panel shows the two physical channels (phys_net_carbon_v1.channels_shown); the reference was
+  judged on the Letter's four-channel panel — the first re-labelling measures the criterion across instruments
+n_science: 0
+n_controls:
+  calibration: 42
+hours_at_planning_rate: 0.3348333333333333
+reference_rows:
+- WMO: 5904663
+  CYCLE_NUMBER: 105.0
+  PRES_ADJUSTED: 220.0
+  REF_LABEL: 0
+  tier: borderline
+- WMO: 7900585
+  CYCLE_NUMBER: 149.0
+  PRES_ADJUSTED: 220.0
+  REF_LABEL: 1
+  tier: borderline
+- WMO: 5906224
+  CYCLE_NUMBER: 16.0
+  PRES_ADJUSTED: 180.0
+  REF_LABEL: 0
+  tier: borderline
+- WMO: 2903865
+  CYCLE_NUMBER: 15.0
+  PRES_ADJUSTED: 300.0
+  REF_LABEL: 0
+  tier: borderline
+- WMO: 5906524
+  CYCLE_NUMBER: 47.0
+  PRES_ADJUSTED: 460.0
+  REF_LABEL: 1
+  tier: clear_TP
+- WMO: 4903659
+  CYCLE_NUMBER: 30.0
+  PRES_ADJUSTED: 500.0
+  REF_LABEL: 1
+  tier: clear_TP
+- WMO: 3901581
+  CYCLE_NUMBER: 23.0
+  PRES_ADJUSTED: 340.0
+  REF_LABEL: 1
+  tier: clear_TP
+- WMO: 5905134
+  CYCLE_NUMBER: 5.0
+  PRES_ADJUSTED: 220.0
+  REF_LABEL: 0
+  tier: borderline
+- WMO: 6902544
+  CYCLE_NUMBER: 103.0
+  PRES_ADJUSTED: 260.0
+  REF_LABEL: 1
+  tier: borderline
+- WMO: 5906319
+  CYCLE_NUMBER: 104.0
+  PRES_ADJUSTED: 180.0
+  REF_LABEL: 0
+  tier: clear_FP
+- WMO: 5906552
+  CYCLE_NUMBER: 112.0
+  PRES_ADJUSTED: 300.0
+  REF_LABEL: 0
+  tier: clear_FP
+- WMO: 7901095
+  CYCLE_NUMBER: 84.0
+  PRES_ADJUSTED: 220.0
+  REF_LABEL: 0
+  tier: borderline
+- WMO: 4903755
+  CYCLE_NUMBER: 28.0
+  PRES_ADJUSTED: 260.0
+  REF_LABEL: 1
+  tier: clear_TP
+- WMO: 5906540
+  CYCLE_NUMBER: 124.0
+  PRES_ADJUSTED: 220.0
+  REF_LABEL: 0
+  tier: clear_FP
+- WMO: 5904854
+  CYCLE_NUMBER: 139.0
+  PRES_ADJUSTED: 300.0
+  REF_LABEL: 0
+  tier: borderline
+- WMO: 5906045
+  CYCLE_NUMBER: 215.0
+  PRES_ADJUSTED: 180.0
+  REF_LABEL: 0
+  tier: clear_FP
+- WMO: 5905072
+  CYCLE_NUMBER: 75.0
+  PRES_ADJUSTED: 380.0
+  REF_LABEL: 1
+  tier: borderline
+- WMO: 3902332
+  CYCLE_NUMBER: 14.0
+  PRES_ADJUSTED: 260.0
+  REF_LABEL: 0
+  tier: borderline
+- WMO: 5904678
+  CYCLE_NUMBER: 152.0
+  PRES_ADJUSTED: 460.0
+  REF_LABEL: 0
+  tier: borderline
+- WMO: 6901582
+  CYCLE_NUMBER: 183.0
+  PRES_ADJUSTED: 220.0
+  REF_LABEL: 1
+  tier: clear_TP
+- WMO: 5906032
+  CYCLE_NUMBER: 17.0
+  PRES_ADJUSTED: 300.0
+  REF_LABEL: 0
+  tier: borderline
+- WMO: 5906207
+  CYCLE_NUMBER: 126.0
+  PRES_ADJUSTED: 460.0
+  REF_LABEL: 1
+  tier: clear_TP
+- WMO: 6901774
+  CYCLE_NUMBER: 190.0
+  PRES_ADJUSTED: 340.0
+  REF_LABEL: 0
+  tier: clear_FP
+- WMO: 5906224
+  CYCLE_NUMBER: 56.0
+  PRES_ADJUSTED: 500.0
+  REF_LABEL: 1
+  tier: clear_TP
+- WMO: 5905071
+  CYCLE_NUMBER: 62.0
+  PRES_ADJUSTED: 220.0
+  REF_LABEL: 0
+  tier: clear_FP
+- WMO: 5905995
+  CYCLE_NUMBER: 41.0
+  PRES_ADJUSTED: 220.0
+  REF_LABEL: 0
+  tier: clear_FP
+- WMO: 5906249
+  CYCLE_NUMBER: 69.0
+  PRES_ADJUSTED: 460.0
+  REF_LABEL: 0
+  tier: borderline
+- WMO: 5906303
+  CYCLE_NUMBER: 22.0
+  PRES_ADJUSTED: 180.0
+  REF_LABEL: 0
+  tier: clear_FP
+- WMO: 5903593
+  CYCLE_NUMBER: 58.0
+  PRES_ADJUSTED: 260.0
+  REF_LABEL: 1
+  tier: clear_TP
+- WMO: 5906501
+  CYCLE_NUMBER: 68.0
+  PRES_ADJUSTED: 300.0
+  REF_LABEL: 0
+  tier: borderline
+- WMO: 5904397
+  CYCLE_NUMBER: 88.0
+  PRES_ADJUSTED: 220.0
+  REF_LABEL: 0
+  tier: clear_FP
+- WMO: 7900561
+  CYCLE_NUMBER: 75.0
+  PRES_ADJUSTED: 260.0
+  REF_LABEL: 0
+  tier: clear_FP
+- WMO: 5906031
+  CYCLE_NUMBER: 64.0
+  PRES_ADJUSTED: 180.0
+  REF_LABEL: 0
+  tier: borderline
+- WMO: 5905396
+  CYCLE_NUMBER: 107.0
+  PRES_ADJUSTED: 380.0
+  REF_LABEL: 1
+  tier: borderline
+- WMO: 5904761
+  CYCLE_NUMBER: 45.0
+  PRES_ADJUSTED: 220.0
+  REF_LABEL: 1
+  tier: borderline
+- WMO: 5905099
+  CYCLE_NUMBER: 89.0
+  PRES_ADJUSTED: 260.0
+  REF_LABEL: 1
+  tier: clear_TP
+- WMO: 5906486
+  CYCLE_NUMBER: 10.0
+  PRES_ADJUSTED: 180.0
+  REF_LABEL: 0
+  tier: clear_FP
+- WMO: 4903532
+  CYCLE_NUMBER: 33.0
+  PRES_ADJUSTED: 500.0
+  REF_LABEL: 0
+  tier: clear_FP
+- WMO: 4903365
+  CYCLE_NUMBER: 57.0
+  PRES_ADJUSTED: 260.0
+  REF_LABEL: 1
+  tier: clear_TP
+- WMO: 6903555
+  CYCLE_NUMBER: 60.0
+  PRES_ADJUSTED: 420.0
+  REF_LABEL: 1
+  tier: clear_TP
+- WMO: 5904693
+  CYCLE_NUMBER: 143.0
+  PRES_ADJUSTED: 460.0
+  REF_LABEL: 1
+  tier: clear_TP
+- WMO: 6901578
+  CYCLE_NUMBER: 275.0
+  PRES_ADJUSTED: 460.0
+  REF_LABEL: 1
+  tier: borderline
+sheet_columns:
+- LABEL
+- SAMPLE_ID
+- WMO
+- CYCLE_NUMBER
+- PRES_ADJUSTED
+- LATITUDE
+- LONGITUDE
+- TIME
+- EVENT_TYPE
+blind: true
+worksheet:
+  path: /Users/mk0964/Documents/release/eddy-pump/results/net_carbon_v1/labeling/calib_obduction_b6/calib_obduction_b6.csv
+  sha256: 446f37764582ccfe21bb18ca03b117f9c672b8cfc0feb8f7b3d02f59434ae04b
+  rows: 42
+answer_key:
+  path: /Users/mk0964/Documents/release/eddy-pump/results/net_carbon_v1/labeling/calib_obduction_b6/ANSWER_KEY_do_not_open.csv
+  sha256: b6b9327a051738d4448bd1ad6b93c4616a862f85e6f115c15997a2fd71b94b40
+  rows: 42
+panels:
+  dir: /Users/mk0964/Documents/release/eddy-pump/results/net_carbon_v1/labeling/calib_obduction_b6/panels
+  rendered: 42
+  of: 42

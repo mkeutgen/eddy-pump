@@ -1,0 +1,15 @@
+{
+  "study_id": "net_carbon_v1",
+  "pool_id": "net_carbon_v1/physical/subduction",
+  "spec_id": "v1:6b8de00d7d53e118",
+  "event_type": "physical_subduction",
+  "rows": 133307,
+  "content_sha256": "9d07cc692fac39cafba94711cc4819de96e8867bd06902991ceb7e7271946aff",
+  "cache": {
+    "path": "/Users/mk0964/Documents/release/cache_paper/residual_cache_v4",
+    "fine_grids": 2542,
+    "fine_grids_sha256": "11fce215c7db6cebabfbb0d233d17ed7b6674e388bcfb5b91153449ec35f8299"
+  },
+  "written": "2026-09-02T16:39:28",
+  "file_sha256": "bcf2087463f456c6f4901151eac87462329d849b1db0312e2b49517f3ace4b68"
+}

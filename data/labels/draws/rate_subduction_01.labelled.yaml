@@ -1,0 +1,179 @@
+# data/labels/draws/rate_subduction_01.labelled.yaml -- the session read and the hashes of the labelled sheet. BUILT by
+# production/ingest_study_batch.py; never edited by hand.
+batch_id: rate_subduction_01
+ingested: '2026-09-02T16:18:54-04:00'
+worksheet_mtime: '2026-09-02T14:04:15-04:00'
+anchor:
+  batch_id: calib_subduction_v1_pass2
+  worksheet_mtime: '2026-09-01T14:23:56-04:00'
+  kappa: 0.8558352402745996
+labelled_sheet:
+  path: /Users/mk0964/Documents/release/eddy-pump/results/net_carbon_v1/labeling/rate_subduction_01/rate_subduction_01_LABELLED_20260902T201854Z.csv
+  sha256: 1f0e38def0e4a4d396a9a22197d85825050657f733784df0bf370684dd5b4abc
+rows: 832
+decided: 817
+accepted: 201
+uncertain: 15
+blank: 0
+session:
+  kind: rate
+  n_rows: 832
+  n_decided: 817
+  n_accepted: 201
+  n_rejected: 616
+  n_uncertain: 15
+  n_blank: 0
+  position:
+  - bin: 1
+    sid_lo: 0.0
+    sid_hi: 205.0
+    n: 205
+    accept: 0.2731707317073171
+  - bin: 2
+    sid_lo: 206.0
+    sid_hi: 409.0
+    n: 204
+    accept: 0.29901960784313725
+  - bin: 3
+    sid_lo: 410.0
+    sid_hi: 623.0
+    n: 204
+    accept: 0.22058823529411764
+  - bin: 4
+    sid_lo: 625.0
+    sid_hi: 831.0
+    n: 204
+    accept: 0.19117647058823528
+  trend_p_mann_whitney: 0.004561437211492635
+  change_point:
+    sample_id: 541.0
+    accept_before: 0.2857142857142857
+    accept_after: 0.17192982456140352
+    p_raw: 0.00032902597870557875
+    p_adjusted: 0.2635498089431686
+    verdict: suggestive
+  key_opened: true
+  warnings:
+  - 15 uncertain — a rising uncertain rate is a fatigue signal
+  - the worksheet already carries `LATITUDE`, `LONGITUDE`, `SAMPLE_ID`, `TIME` — the answer key ANSWER_KEY_do_not_open.csv
+    is the authority, so the worksheet's copy was dropped before the join
+  controls:
+    pos_ctrl:
+      n: 19
+      accepted: 11
+      ci95:
+      - 0.35900444531365683
+      - 0.7767834055946311
+      overturned_in_ledger: 0
+      standing:
+        n: 19
+        accepted: 11
+        ci95:
+        - 0.35900444531365683
+        - 0.7767834055946311
+    neg_ctrl:
+      n: 19
+      accepted: 2
+      ci95:
+      - 0.022531952331801636
+      - 0.2968822418114352
+      overturned_in_ledger: 0
+      standing:
+        n: 19
+        accepted: 2
+        ci95:
+        - 0.022531952331801636
+        - 0.2968822418114352
+      ceiling: 0.2
+      ceiling_note: display only; at equality nothing fires — the test is Fisher against the negatives' own blind
+        history
+      with_score_above_0p5:
+        n: 2
+        accepted: 2
+        note: a rejected candidate the classifier calls likely is a plausible legacy miss, not a control
+  target_by_stratum:
+    open|d0:
+      n: 40
+      accepted: 0
+    open|d1:
+      n: 39
+      accepted: 4
+    open|d2:
+      n: 40
+      accepted: 4
+    open|d3:
+      n: 48
+      accepted: 8
+    open|d4:
+      n: 70
+      accepted: 9
+    open|d5:
+      n: 81
+      accepted: 7
+    open|d6:
+      n: 98
+      accepted: 16
+    open|d7:
+      n: 110
+      accepted: 23
+    open|d8:
+      n: 122
+      accepted: 43
+    open|d9:
+      n: 131
+      accepted: 74
+  target_raw_acceptance_unweighted: 0.24133504492939667
+  target_previously_judged:
+    n: 33
+    accepted: 21
+  target_position_quarters:
+  - quarter: 1
+    n: 195
+    accept: 0.26153846153846155
+  - quarter: 2
+    n: 195
+    accept: 0.29743589743589743
+  - quarter: 3
+    n: 194
+    accept: 0.21649484536082475
+  - quarter: 4
+    n: 195
+    accept: 0.18974358974358974
+  target_halves:
+    first:
+      n: 390
+      accept: 0.2794871794871795
+    second:
+      n: 389
+      accept: 0.20308483290488433
+    by_stratum:
+      open|d0:
+        first: 0.0
+        second: 0.0
+      open|d1:
+        first: 0.13636363636363635
+        second: 0.058823529411764705
+      open|d2:
+        first: 0.15
+        second: 0.05
+      open|d3:
+        first: 0.15
+        second: 0.17857142857142858
+      open|d4:
+        first: 0.20689655172413793
+        second: 0.07317073170731707
+      open|d5:
+        first: 0.09090909090909091
+        second: 0.08108108108108109
+      open|d6:
+        first: 0.20512820512820512
+        second: 0.13559322033898305
+      open|d7:
+        first: 0.29508196721311475
+        second: 0.10204081632653061
+      open|d8:
+        first: 0.45588235294117646
+        second: 0.2222222222222222
+      open|d9:
+        first: 0.5409836065573771
+        second: 0.5857142857142857

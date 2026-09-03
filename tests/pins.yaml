@@ -1,0 +1,47 @@
+# tests/pins.yaml — the numbers the tests hold fixed, each with one line of why.
+# Re-pin only after re-checking what the number stands for, and say so in the commit.
+
+pool_rows:   # the six saved candidate lists, data/candidates/net_carbon_v1/ (the fourth cache build, 2026-08-27)
+  physical_obduction: 186275
+  physical_subduction: 133307
+  nitrate_obduction: 13329
+  nitrate_subduction: 7503
+  carbon_obduction: 11400
+  carbon_subduction: 12081
+
+cache_fingerprint: 11fce215c7db6cebabfbb0d233d17ed7b6674e388bcfb5b91153449ec35f8299   # sha256 of the 2,542 fine-grid names
+
+spec_ids:   # config/events.yaml; a hash of each pool's channels and parameters
+  net_carbon_v1/physical/obduction: "v1:31619ba88c252ed8"
+  net_carbon_v1/nitrate/obduction: "v1:7762b146690be98e"
+  net_carbon_v1/carbon/obduction: "v1:feb637c336821f05"
+  net_carbon_v1/physical/subduction: "v1:6b8de00d7d53e118"
+  net_carbon_v1/nitrate/subduction: "v1:4d000b93251473f9"
+  net_carbon_v1/carbon/subduction: "v1:768ee191d3cfcd9f"
+
+spec_ids_before_the_ceiling_ruling:   # what the six ids read before the nitrate ceiling went from 100 to 48 (2026-08-26)
+  net_carbon_v1/physical/obduction: "v1:31619ba88c252ed8"
+  net_carbon_v1/nitrate/obduction: "v1:686227f8969254d7"
+  net_carbon_v1/carbon/obduction: "v1:feb637c336821f05"
+  net_carbon_v1/physical/subduction: "v1:6b8de00d7d53e118"
+  net_carbon_v1/nitrate/subduction: "v1:5e5a374f8107c6fb"
+  net_carbon_v1/carbon/subduction: "v1:768ee191d3cfcd9f"
+
+excluded_floats:   # config/events.yaml `excluded_floats:`, the two rulings of 2026-08-25
+  salinity: [6902963, 6903872]
+  nitrate: [1902692, 2902882, 2902914, 4902679, 4902680, 4902681, 4902683]
+
+labels:   # the old labels (data/labels/verdicts.csv) and the label table (reviews.parquet)
+  reviews: 58525          # rows of verdicts.csv = rows of reviews.parquet
+  sheets: 224
+  resolved_keys: 7798     # the old catalogue rule (first verdict wins): decided keys
+  resolved_accepted: 1605
+  consistent_keys: 4172   # the reviewer-consistent training set
+  consistent_accepted: 1068
+  labelled_keys: 11792    # every key with a label; the exclusion set for a new draw
+
+reuse:   # data/labels/audit/ — the reuse audit of the old labels
+  direct: 1713            # old uniform verdicts the study may use directly (the upward held region)
+  direct_accepted: 234
+  direct_floats: 398
+  direct_other_frame: 673

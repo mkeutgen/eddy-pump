@@ -1,0 +1,15 @@
+{
+  "study_id": "net_carbon_v1",
+  "pool_id": "net_carbon_v1/carbon/obduction",
+  "spec_id": "v1:feb637c336821f05",
+  "event_type": "carbon_obduction",
+  "rows": 11400,
+  "content_sha256": "411eaf7a3be7d366e4f756bb46091e4519298ce524a70a2f40dd5f3dd36691e6",
+  "cache": {
+    "path": "/Users/mk0964/Documents/release/cache_paper/residual_cache_v4",
+    "fine_grids": 2542,
+    "fine_grids_sha256": "11fce215c7db6cebabfbb0d233d17ed7b6674e388bcfb5b91153449ec35f8299"
+  },
+  "written": "2026-09-02T16:39:27",
+  "file_sha256": "d398a5d572e6b325c1f23f77c4a62bd746e9782027d41f12eef3afe6ea969f1f"
+}

@@ -1,0 +1,21 @@
+# Everything the pipeline regenerates (features, scores, rendered panels, rate outputs).
+# `make features` / `make scores` / `make rates` rebuild it from data/ plus the fleet cache.
+results/
+export/
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+
+# macOS
+**/.DS_Store
+
+# R scratch output (Rscript writes Rplots.pdf into the CWD whenever a device is left open)
+Rplots.pdf
+*.Rout
+.Rhistory

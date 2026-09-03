@@ -1,0 +1,114 @@
+# data/labels/draws/calib_subduction_v1_pass2.labelled.yaml -- the session read and the hashes of the labelled sheet. BUILT by
+# production/ingest_study_batch.py; never edited by hand.
+batch_id: calib_subduction_v1_pass2
+ingested: '2026-09-01T14:27:48-04:00'
+worksheet_mtime: '2026-09-01T14:23:56-04:00'
+anchor: null
+labelled_sheet:
+  path: /Users/mk0964/Documents/release/eddy-pump/results/net_carbon_v1/labeling/calib_subduction_v1_pass2/calib_subduction_v1_pass2_LABELLED_20260901T182403Z.csv
+  sha256: 293e70f24e1eb35cded1591e289751251cae0d9820beae7068201c229bd448dc
+rows: 42
+decided: 42
+accepted: 20
+uncertain: 0
+blank: 0
+session:
+  n_reference: 42
+  n_decided: 42
+  n_missing_from_sheet: 0
+  n_undecided: 0
+  kappa: 0.8558352402745996
+  kappa_ci95_bootstrap:
+  - 0.6735751295336786
+  - 1.0
+  kappa_pass: 0.6
+  base_rate_reference: 0.40476190476190477
+  base_rate_observed: 0.47619047619047616
+  base_rate_p: 0.35001295739185456
+  base_rate_on_target: true
+  base_rate_pass_region_accepted:
+  - 11
+  - 23
+  agreement_by_tier:
+    borderline:
+      n: 18
+      agree: 16
+    clear_FP:
+      n: 12
+      agree: 12
+    clear_TP:
+      n: 12
+      agree: 11
+  verdict: PASS
+  verdict_means: PASS = not detectably drifted at this n; it is not evidence of anchoring
+  disagreements:
+  - WMO: 6901657
+    CYCLE_NUMBER: 51
+    PRES_ADJUSTED: 380.0
+    LABEL: 1
+    REF_LABEL: 0
+  - WMO: 5906238
+    CYCLE_NUMBER: 53
+    PRES_ADJUSTED: 300.0
+    LABEL: 1
+    REF_LABEL: 0
+  - WMO: 5906248
+    CYCLE_NUMBER: 53
+    PRES_ADJUSTED: 420.0
+    LABEL: 1
+    REF_LABEL: 0
+  kind: calibration
+  reference:
+    batch_id: calib_subduction_v1
+    pool_id: net_carbon_v1/physical/subduction
+    criterion_version: phys_net_carbon_v1
+    frozen: '2026-09-01T14:27:45-04:00'
+    how: 'consensus of the user''s two blind passes (pass 1: 15/42, sheet 44a43bb129c75fff; pass 2: 20/42, kappa
+      0.76, sheet 293e70f24e1eb35c), the five disagreements adjudicated by the user on a third look on 2026-08-27:
+      two accepted, three rejected; advisor review still welcome'
+    source_sheet_sha256: null
+    history:
+    - pass: 1
+      base_rate: 15/42
+      sheet_sha256: 44a43bb129c75fffa724ddfd4d8810642f8abdae34e3cf025e13ab3899c06de7
+      frozen: '2026-09-01T14:13:19-04:00'
+      how: single pass by the user on 2026-08-27 (15 of 42 accepted); consensus adjudication with the advisor pending
+        — the plan's open ruling
+    - pass: 2
+      base_rate: 20/42
+      sheet_sha256: 293e70f24e1eb35cded1591e289751251cae0d9820beae7068201c229bd448dc
+      kappa_vs_pass1: 0.7586
+    - adjudication: the user, 2026-08-27
+      rulings:
+      - WMO: 5904678
+        CYCLE_NUMBER: 28
+        PRES_ADJUSTED: 940.0
+        pass1: 0
+        pass2: 1
+        ruled: 1
+      - WMO: 5906248
+        CYCLE_NUMBER: 53
+        PRES_ADJUSTED: 420.0
+        pass1: 0
+        pass2: 1
+        ruled: 0
+      - WMO: 5906238
+        CYCLE_NUMBER: 53
+        PRES_ADJUSTED: 300.0
+        pass1: 0
+        pass2: 1
+        ruled: 0
+      - WMO: 5905070
+        CYCLE_NUMBER: 47
+        PRES_ADJUSTED: 380.0
+        pass1: 0
+        pass2: 1
+        ruled: 1
+      - WMO: 6901657
+        CYCLE_NUMBER: 51
+        PRES_ADJUSTED: 380.0
+        pass1: 0
+        pass2: 1
+        ruled: 0
+    n: 42
+    base_rate: 17/42

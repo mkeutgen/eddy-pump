@@ -1,0 +1,275 @@
+# data/labels/draws/rate_obduction_01.yaml -- the draw record of one study batch. BUILT by production/build_batches.py;
+# never edited by hand. The sheet and key it hashes live under results/ (not in Git).
+batch_id: rate_obduction_01
+built: '2026-08-27T16:30:43+02:00'
+builder: production/build_batches.py
+seed: 20260827
+study_id: net_carbon_v1
+pool_id: net_carbon_v1/physical/obduction
+spec_id: v1:31619ba88c252ed8
+event_type: physical_obduction
+criterion_version: phys_net_carbon_v1
+criterion_status: ruled
+cache:
+  path: /Users/mk0964/Documents/release/cache_paper/residual_cache_v4
+  fine_grids: 2542
+  fine_grids_sha256: 11fce215c7db6cebabfbb0d233d17ed7b6674e388bcfb5b91153449ec35f8299
+scores_manifest:
+  path: data/features/net_carbon_v1/SCORES_SHA256
+  sha256: 4674461e115005d31b6be8fa6bd4538e3771d0efcc7e408fb620feb264c8c31e
+  built: '2026-08-27T15:41:42'
+  features_manifest_sha256: d1c80c0c08bc776dd55c6434cd22e19ade23b5a5b3c45794ccbc931beb595052
+role: analysis
+decides: true
+sampling:
+  mode: probability
+  draw: stratified_pps_one_per_float
+  design: probability
+  frame: the active pool net_carbon_v1/physical/obduction (186,275 candidate levels); the draw covers the OPEN region
+    (171,578 levels); the HELD region (14,697 levels, letter_pool_1p96) keeps its direct sample
+  strata: rank deciles of the classifier score over the whole pool × region
+  inclusion_probability: n_h / N_h within each open stratum, exact (one panel per float per stratum by systematic
+    PPS)
+  allocation: Neyman on planned acceptance with a 5% floor per decile; n solved for the target
+target:
+  rel_half_width: 0.15
+  planning_base_rate: 0.136602
+  planning_base_rate_source: the upward direct sample's own rate, 234/1713 on the whole-Letter-pool frame
+  variance_target: 0.00010929102303467304
+  variance_held: 5.663355868820585e-07
+  variance_open_planned: 9.871639033487764e-05
+  float_design_effect: 1.1001354679802955
+  float_design_effect_iterations:
+  - n: 526
+    panels_per_float: 1.3878627968337731
+    design_effect: 1.0911477572559367
+  - n: 574
+    panels_per_float: 1.4137931034482758
+    design_effect: 1.0972413793103448
+  - n: 577
+    panels_per_float: 1.364066193853428
+    design_effect: 1.0855555555555556
+  - n: 571
+    panels_per_float: 1.4275
+    design_effect: 1.1004625
+  - n: 579
+    panels_per_float: 1.4261083743842364
+    design_effect: 1.1001354679802955
+  rho_float: 0.235
+  rho_float_source: intra-float correlation implied by the direct sample's pooled float-bootstrap design effect
+    1.87 at 4.7 panels per float (data/labels/audit/label_budget.csv, design_effect_pooled)
+  variance_open_with_design_effect: 0.00010860140227838614
+  expected_rel_half_width: 0.1499153727679987
+  expected_rel_half_width_if_unclustered: 0.14296701833154077
+  neyman_vs_proportional_multiplier: 0.7983738933451275
+  stratified_vs_srs_multiplier: 0.5730540312890584
+  budget_reference_panels: 386.546244
+  budget_reference_design: score_stratified_spread_across_floats
+  budget_reference_multiplier: 0.42
+steering_labels:
+  n: 2387
+  accepted: 243
+  what: the 2,387 uniform b6 reviews with their out-of-fold score
+n_science: 579
+n_controls:
+  positive: 20
+  negative: 20
+floats_in_draw: 406
+floats_with_more_than_one_panel: 121
+max_panels_one_float: 7
+floats_chunked_for_pps: 1
+panels_per_float_in_draw: 1.4261083743842364
+previously_judged_in_draw: 3
+hours_at_planning_rate: 4.934805555555555
+strata:
+- design_stratum: open|d0
+  N: 15880
+  floats: 1480
+  score_min: 7.212285842831873e-05
+  score_max: 0.001360104323198868
+  p_raw: 0.014082574377880701
+  max_float_share: 0.013350125944584382
+  W: 0.08525030197288955
+  p_planned: 0.015904383423564324
+  n: 29
+  inclusion_probability: 0.0018261964735516373
+- design_stratum: open|d1
+  N: 16993
+  floats: 1598
+  score_min: 0.0013601902389169852
+  score_max: 0.0024117149763437287
+  p_raw: 0.015300546448087432
+  max_float_share: 0.00947448949567469
+  W: 0.09122533888068715
+  p_planned: 0.01727991990460618
+  n: 29
+  inclusion_probability: 0.001706585064438298
+- design_stratum: open|d2
+  N: 17227
+  floats: 1630
+  score_min: 0.0024117414207738214
+  score_max: 0.0037773726308731187
+  p_raw: 0.01556595453307926
+  max_float_share: 0.010158472165786265
+  W: 0.09248154610119447
+  p_planned: 0.017579662823347948
+  n: 29
+  inclusion_probability: 0.001683403958901724
+- design_stratum: open|d3
+  N: 17372
+  floats: 1597
+  score_min: 0.0037775017513823144
+  score_max: 0.00572133980692866
+  p_raw: 0.01863082330115395
+  max_float_share: 0.008577020492746949
+  W: 0.09325996510535499
+  p_planned: 0.021041021998338703
+  n: 32
+  inclusion_probability: 0.0018420446695832373
+- design_stratum: open|d4
+  N: 17386
+  floats: 1543
+  score_min: 0.005721485358827349
+  score_max: 0.008804195277006543
+  p_raw: 0.030194015229226222
+  max_float_share: 0.006787070056367192
+  W: 0.09333512280230842
+  p_planned: 0.0341001000539237
+  n: 41
+  inclusion_probability: 0.0023582192568733463
+- design_stratum: open|d5
+  N: 17430
+  floats: 1563
+  score_min: 0.008804756365188935
+  score_max: 0.014072257154039303
+  p_raw: 0.053635455574858534
+  max_float_share: 0.007573149741824441
+  W: 0.09357133270701919
+  p_planned: 0.06057407031344757
+  n: 54
+  inclusion_probability: 0.003098106712564544
+- design_stratum: open|d6
+  N: 17407
+  floats: 1512
+  score_min: 0.014072768558111052
+  score_max: 0.024627320071517942
+  p_raw: 0.11661916346526752
+  max_float_share: 0.008272534038030677
+  W: 0.09344785934773855
+  p_planned: 0.1317057407628663
+  n: 76
+  inclusion_probability: 0.004366059631182857
+- design_stratum: open|d7
+  N: 17479
+  floats: 1450
+  score_min: 0.02462754543178029
+  score_max: 0.05176184429534244
+  p_raw: 0.14809261843643887
+  max_float_share: 0.0092110532639167
+  W: 0.0938343846463562
+  p_planned: 0.16725079680830268
+  n: 84
+  inclusion_probability: 0.004805766920304365
+- design_stratum: open|d8
+  N: 17488
+  floats: 1406
+  score_min: 0.05176207796068308
+  score_max: 0.16120462092813612
+  p_raw: 0.23130342471406073
+  max_float_share: 0.008348581884720952
+  W: 0.0938827003086834
+  p_planned: 0.26122626837420493
+  n: 99
+  inclusion_probability: 0.005661024702653248
+- design_stratum: open|d9
+  N: 16916
+  floats: 1201
+  score_min: 0.16120838623494982
+  score_max: 0.9982532597839404
+  p_raw: 0.5600908896383926
+  max_float_share: 0.010877275951761646
+  W: 0.09081197154744329
+  p_planned: 0.6325477161935503
+  n: 106
+  inclusion_probability: 0.00626625679829747
+rescale_factor_planned_acceptance: 1.1293661937653325
+held_strata:
+- stratum: letter_pool_1p96|<=200
+  N: 4931
+  W: 0.0264716
+  n_direct: 582
+  accepted: 35
+  design_effect_within: 1.04115
+  variance: 1.4784913860956418e-07
+  held_at: the direct sample, phys_obduction_letter_b6, whole-Letter-pool frame
+- stratum: letter_pool_1p96|200-260
+  N: 4777
+  W: 0.0256449
+  n_direct: 578
+  accepted: 78
+  design_effect_within: 1.44809
+  variance: 1.9432909677302408e-07
+  held_at: the direct sample, phys_obduction_letter_b6, whole-Letter-pool frame
+- stratum: letter_pool_1p96|260-400
+  N: 2158
+  W: 0.011585
+  n_direct: 232
+  accepted: 51
+  design_effect_within: 1.47945
+  variance: 1.0094213352140447e-07
+  held_at: the direct sample, phys_obduction_letter_b6, whole-Letter-pool frame
+- stratum: letter_pool_1p96|400-600
+  N: 1493
+  W: 0.00801503
+  n_direct: 158
+  accepted: 42
+  design_effect_within: 1.10986
+  variance: 5.3221794436800226e-08
+  held_at: the direct sample, phys_obduction_letter_b6, whole-Letter-pool frame
+- stratum: letter_pool_1p96|600-1000
+  N: 1338
+  W: 0.00718293
+  n_direct: 163
+  accepted: 28
+  design_effect_within: 1.87488
+  variance: 6.999342354126552e-08
+  held_at: the direct sample, phys_obduction_letter_b6, whole-Letter-pool frame
+controls:
+  positive:
+    source: the direct uniform verdicts (reuse_status direct), accepted
+    criterion: phys_obduction_letter_b6
+    n_source: 234
+    reference_k: 223
+    reference_n: 234
+    reference_provenance: direct accepts surviving the blind re-look flips (data/labels/audit/direct_flips.csv)
+    src: direct verdict under phys_obduction_letter_b6, accepted
+    steering: the 2,387 uniform b6 reviews with their out-of-fold score
+  negative:
+    source: the direct uniform verdicts (reuse_status direct), rejected
+    criterion: phys_obduction_letter_b6
+    n_source: 1479
+    ceiling: 0.2
+    src: direct verdict under phys_obduction_letter_b6, rejected
+sheet_columns:
+- LABEL
+- SAMPLE_ID
+- WMO
+- CYCLE_NUMBER
+- PRES_ADJUSTED
+- LATITUDE
+- LONGITUDE
+- TIME
+- EVENT_TYPE
+blind: true
+worksheet:
+  path: /Users/mk0964/Documents/release/eddy-pump/results/net_carbon_v1/labeling/rate_obduction_01/rate_obduction_01.csv
+  sha256: f47d7d84f6cf7c3013f4fa73009c393255af74d53863f1230802169f5f312294
+  rows: 619
+answer_key:
+  path: /Users/mk0964/Documents/release/eddy-pump/results/net_carbon_v1/labeling/rate_obduction_01/ANSWER_KEY_do_not_open.csv
+  sha256: 35a2f83bdd101524631e193972a4a55b2dc00a8ecb9134c2748bdd817ed1ce19
+  rows: 619
+panels:
+  dir: /Users/mk0964/Documents/release/eddy-pump/results/net_carbon_v1/labeling/rate_obduction_01/panels
+  rendered: 619
+  of: 619

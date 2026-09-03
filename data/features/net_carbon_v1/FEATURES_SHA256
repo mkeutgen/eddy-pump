@@ -1,0 +1,36 @@
+# provenance of the study's candidate feature tables -- built by production/build_study_features.py; do not edit
+{
+  "study_id": "net_carbon_v1",
+  "built": "2026-09-02T21:28:25",
+  "cache": {
+    "path": "/Users/mk0964/Documents/release/cache_paper/residual_cache_v4",
+    "fine_grids": 2542,
+    "fine_grids_sha256": "11fce215c7db6cebabfbb0d233d17ed7b6674e388bcfb5b91153449ec35f8299"
+  },
+  "pools": [
+    {
+      "pool_id": "net_carbon_v1/physical/obduction",
+      "spec_id": "v1:31619ba88c252ed8",
+      "candidates": 186275,
+      "rows": 186275,
+      "floats_ok": 2142,
+      "floats_missing": 0,
+      "columns": 176,
+      "file": "results/net_carbon_v1/features/physical_obduction.parquet",
+      "sha256": "7444d917926f0ff86777ab608e21674c9cfb6416c231dc00b495d43bfdc0e0fc",
+      "seconds": 12301
+    },
+    {
+      "pool_id": "net_carbon_v1/physical/subduction",
+      "spec_id": "v1:6b8de00d7d53e118",
+      "candidates": 133307,
+      "rows": 133307,
+      "floats_ok": 2108,
+      "floats_missing": 0,
+      "columns": 176,
+      "file": "results/net_carbon_v1/features/physical_subduction.parquet",
+      "sha256": "b2c88682d48654a5e5182868f9b3d985b33984cee23d553efd41c263aceff3e0",
+      "seconds": 1439
+    }
+  ]
+}

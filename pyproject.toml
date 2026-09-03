@@ -1,0 +1,41 @@
+[project]
+name = "eddy-pump"
+version = "0.1.0"
+description = "Water-mass injection events (submesoscale eddy-pump obduction/subduction) — the science application layer on argopod"
+requires-python = ">=3.11"
+dependencies = [
+    # the generic detect -> review -> triage pipeline, with the extras the
+    # `argopod` CLI workflow uses: [cli] (YAML config), [ml] (triage/catalogue),
+    # [review] (the keyboard labeling app + diagnostic panels).
+    #
+    # argopod is NOT on PyPI, so the bare name resolves nowhere: pin the git tag.
+    # Replace this with a plain PyPI pin ("argopod[cli,ml,review]>=0.4.0") if and
+    # when argopod is published there.  Building against a local argopod checkout
+    # instead?  pip re-clones a direct URL even when a matching argopod is already
+    # installed, so use the documented second path: install `../argopod[all,dev]`
+    # and then this repo with --no-deps (README "Reproduce it").
+    "argopod[cli,ml,review] @ git+https://github.com/mkeutgen/argopod@v0.5.0",
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "pyarrow>=14.0",    # cached residual parquets
+    # scipy and gsw are imported directly by production stages (12 and 8 of them
+    # respectively) and reach us through no extra of argopod[cli,ml,review]:
+    # gsw lives in argopod[argo], scipy only ever arrived transitively via
+    # scikit-learn.  Declared here because run_all.sh --preflight requires them.
+    "scipy>=1.11",
+    "gsw>=3.6",
+]
+
+[project.optional-dependencies]
+argo = ["argopod[argo]"]              # argopy + gsw, only for fetching/rendering fresh floats
+dev  = ["pytest>=8.0", "pytest-cov"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

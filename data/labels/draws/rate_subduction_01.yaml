@@ -1,0 +1,239 @@
+# data/labels/draws/rate_subduction_01.yaml -- the draw record of one study batch. BUILT by production/build_batches.py;
+# never edited by hand. The sheet and key it hashes live under results/ (not in Git).
+batch_id: rate_subduction_01
+built: '2026-08-27T16:33:59+02:00'
+builder: production/build_batches.py
+seed: 20260827
+study_id: net_carbon_v1
+pool_id: net_carbon_v1/physical/subduction
+spec_id: v1:6b8de00d7d53e118
+event_type: physical_subduction
+criterion_version: phys_net_carbon_v1
+criterion_status: ruled
+cache:
+  path: /Users/mk0964/Documents/release/cache_paper/residual_cache_v4
+  fine_grids: 2542
+  fine_grids_sha256: 11fce215c7db6cebabfbb0d233d17ed7b6674e388bcfb5b91153449ec35f8299
+scores_manifest:
+  path: data/features/net_carbon_v1/SCORES_SHA256
+  sha256: 4674461e115005d31b6be8fa6bd4538e3771d0efcc7e408fb620feb264c8c31e
+  built: '2026-08-27T15:41:42'
+  features_manifest_sha256: d1c80c0c08bc776dd55c6434cd22e19ade23b5a5b3c45794ccbc931beb595052
+role: analysis
+decides: true
+sampling:
+  mode: probability
+  draw: stratified_pps_one_per_float
+  design: probability
+  frame: the active pool net_carbon_v1/physical/subduction (133,307 candidate levels); the draw covers the OPEN
+    region (133,307 levels)
+  strata: rank deciles of the classifier score over the whole pool × region
+  inclusion_probability: n_h / N_h within each open stratum, exact (one panel per float per stratum by systematic
+    PPS)
+  allocation: Neyman on planned acceptance with a 5% floor per decile; n solved for the target
+target:
+  rel_half_width: 0.15
+  planning_base_rate: 0.136602
+  planning_base_rate_source: the upward direct sample's own rate, 234/1713 on the whole-Letter-pool frame (the downward
+    pool has no direct sample of its own)
+  variance_target: 0.00010929102303467304
+  variance_held: 0.0
+  variance_open_planned: 9.918215852169421e-05
+  float_design_effect: 1.1027858439201452
+  float_design_effect_iterations:
+  - n: 719
+    panels_per_float: 1.390715667311412
+    design_effect: 1.0918181818181818
+  - n: 784
+    panels_per_float: 1.4545454545454546
+    design_effect: 1.106818181818182
+  - n: 796
+    panels_per_float: 1.4878504672897197
+    design_effect: 1.114644859813084
+  - n: 801
+    panels_per_float: 1.427807486631016
+    design_effect: 1.1005347593582888
+  - n: 792
+    panels_per_float: 1.4373865698729582
+    design_effect: 1.1027858439201452
+  rho_float: 0.235
+  rho_float_source: intra-float correlation implied by the direct sample's pooled float-bootstrap design effect
+    1.87 at 4.7 panels per float (data/labels/audit/label_budget.csv, design_effect_pooled)
+  variance_open_with_design_effect: 0.00010937668038716817
+  expected_rel_half_width: 0.15005877008909538
+  expected_rel_half_width_if_unclustered: 0.1428945915120393
+  neyman_vs_proportional_multiplier: 0.7970684456823152
+  stratified_vs_srs_multiplier: 0.6658596464958183
+  budget_reference_panels: 453.24339000000003
+  budget_reference_design: score_stratified_spread_across_floats
+  budget_reference_multiplier: 0.42
+steering_labels:
+  n: 13543
+  accepted: 3983
+  what: the companion's reviewed detections joined to the pool (verified 1, rejected or detected-not-verified 0),
+    rescaled to the planning base rate
+n_science: 792
+n_controls:
+  positive: 20
+  negative: 20
+floats_in_draw: 551
+floats_with_more_than_one_panel: 175
+max_panels_one_float: 4
+floats_chunked_for_pps: 4
+panels_per_float_in_draw: 1.4373865698729582
+previously_judged_in_draw: 34
+hours_at_planning_rate: 6.632888888888888
+strata:
+- design_stratum: open|d0
+  N: 13331
+  floats: 979
+  score_min: 0.001582073274708879
+  score_max: 0.02002867104433037
+  p_raw: 0.007359737624819407
+  max_float_share: 0.02647963393593879
+  W: 0.10000225044446279
+  p_planned: 0.005
+  n: 40
+  inclusion_probability: 0.003000525091891081
+- design_stratum: open|d1
+  N: 13331
+  floats: 1231
+  score_min: 0.02002870420471895
+  score_max: 0.034586678960961834
+  p_raw: 0.01375215729695566
+  max_float_share: 0.008551496511889582
+  W: 0.10000225044446279
+  p_planned: 0.008589039612680717
+  n: 40
+  inclusion_probability: 0.003000525091891081
+- design_stratum: open|d2
+  N: 13331
+  floats: 1346
+  score_min: 0.034587450300368174
+  score_max: 0.05449231357624742
+  p_raw: 0.03306788574324149
+  max_float_share: 0.005926037056484885
+  W: 0.10000225044446279
+  p_planned: 0.020652860087571525
+  n: 40
+  inclusion_probability: 0.003000525091891081
+- design_stratum: open|d3
+  N: 13330
+  floats: 1448
+  score_min: 0.05449238297678548
+  score_max: 0.08301267993345393
+  p_raw: 0.052232835215982404
+  max_float_share: 0.0057014253563390845
+  W: 0.09999474896292018
+  p_planned: 0.032622510131702115
+  n: 48
+  inclusion_probability: 0.003600900225056264
+- design_stratum: open|d4
+  N: 13331
+  floats: 1514
+  score_min: 0.0830156054997788
+  score_max: 0.12463638983933789
+  p_raw: 0.11422970337155511
+  max_float_share: 0.005250918910809392
+  W: 0.10000225044446279
+  p_planned: 0.07134323917457285
+  n: 70
+  inclusion_probability: 0.005250918910809392
+- design_stratum: open|d5
+  N: 13331
+  floats: 1555
+  score_min: 0.12464049899651523
+  score_max: 0.18255652064334102
+  p_raw: 0.16759390733033702
+  max_float_share: 0.005175905783512114
+  W: 0.10000225044446279
+  p_planned: 0.10467235633080375
+  n: 83
+  inclusion_probability: 0.006226089565673993
+- design_stratum: open|d6
+  N: 13330
+  floats: 1529
+  score_min: 0.1825579236580608
+  score_max: 0.2630665875400202
+  p_raw: 0.24473815301986912
+  max_float_share: 0.004576144036009002
+  W: 0.09999474896292018
+  p_planned: 0.15285352295143603
+  n: 98
+  inclusion_probability: 0.007351837959489872
+- design_stratum: open|d7
+  N: 13331
+  floats: 1554
+  score_min: 0.26306702177318764
+  score_max: 0.3814279956338984
+  p_raw: 0.3385034236466378
+  max_float_share: 0.0047258270197284525
+  W: 0.10000225044446279
+  p_planned: 0.2114155075416884
+  n: 111
+  inclusion_probability: 0.00832645712999775
+- design_stratum: open|d8
+  N: 13331
+  floats: 1491
+  score_min: 0.3814478665577899
+  score_max: 0.5666087862722045
+  p_raw: 0.49786511006001866
+  max_float_share: 0.005475958292701223
+  W: 0.10000225044446279
+  p_planned: 0.31094635261507453
+  n: 126
+  inclusion_probability: 0.009451654039456905
+- design_stratum: open|d9
+  N: 13330
+  floats: 1274
+  score_min: 0.5666256472703823
+  score_max: 0.9607156650200208
+  p_raw: 0.7178577342528001
+  max_float_share: 0.008927231807951987
+  W: 0.09999474896292018
+  p_planned: 0.448344822025228
+  n: 136
+  inclusion_probability: 0.010202550637659414
+rescale_factor_planned_acceptance: 0.6245594365461546
+held_strata: []
+controls:
+  positive:
+    source: the companion's verified subduction events (Category 1/2) with a candidate in the pool
+    criterion: phys_companion_2024
+    n_source: 3983
+    reference_k: null
+    reference_n: null
+    reference_provenance: judged under phys_companion_2024 (clauses 1-3, cycle unit); the acceptance under clause
+      4 is unknown until calib_subduction_v1 is adjudicated — the reader REPORTS these, no Fisher test
+    src: companion verified under phys_companion_2024
+    steering: the companion's reviewed detections joined to the pool (verified 1, rejected or detected-not-verified
+      0), rescaled to the planning base rate
+  negative:
+    source: the companion's explicit rejections (Category 0) with a candidate in the pool
+    criterion: phys_companion_2024
+    n_source: 233
+    ceiling: 0.2
+    src: companion rejected under phys_companion_2024
+sheet_columns:
+- LABEL
+- SAMPLE_ID
+- WMO
+- CYCLE_NUMBER
+- PRES_ADJUSTED
+- LATITUDE
+- LONGITUDE
+- TIME
+- EVENT_TYPE
+blind: true
+worksheet:
+  path: /Users/mk0964/Documents/release/eddy-pump/results/net_carbon_v1/labeling/rate_subduction_01/rate_subduction_01.csv
+  sha256: 7b6744dafe7130d3d3de5367c5539f8385567e4de2278107fdf831a1c3e8c27f
+  rows: 832
+answer_key:
+  path: /Users/mk0964/Documents/release/eddy-pump/results/net_carbon_v1/labeling/rate_subduction_01/ANSWER_KEY_do_not_open.csv
+  sha256: 92dbd64b629d3d0b530fb3f456fd4bcb1003fe2df00591d993a83173a40d73d9
+  rows: 832
+panels:
+  dir: /Users/mk0964/Documents/release/eddy-pump/results/net_carbon_v1/labeling/rate_subduction_01/panels
+  rendered: 832
+  of: 832

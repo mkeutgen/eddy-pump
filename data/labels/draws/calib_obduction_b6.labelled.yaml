@@ -1,0 +1,75 @@
+# data/labels/draws/calib_obduction_b6.labelled.yaml -- the session read and the hashes of the labelled sheet. BUILT by
+# production/ingest_study_batch.py; never edited by hand.
+batch_id: calib_obduction_b6
+ingested: '2026-09-01T13:23:51-04:00'
+worksheet_mtime: '2026-08-27T11:23:15-04:00'
+anchor: null
+labelled_sheet:
+  path: /Users/mk0964/Documents/release/eddy-pump/results/net_carbon_v1/labeling/calib_obduction_b6/calib_obduction_b6_LABELLED_20260827T164706Z.csv
+  sha256: 9b25005ecb16cd81d96d9359688e32a9034124f731f2e1ed5cdb41af6fb41baf
+rows: 42
+decided: 42
+accepted: 22
+uncertain: 0
+blank: 0
+session:
+  n_reference: 42
+  n_decided: 42
+  n_missing_from_sheet: 0
+  n_undecided: 0
+  kappa: 0.7162162162162161
+  kappa_ci95_bootstrap:
+  - 0.48316341150742786
+  - 0.9041095890410957
+  kappa_pass: 0.6
+  base_rate_reference: 0.42857142857142855
+  base_rate_observed: 0.5238095238095238
+  base_rate_p: 0.21653216582074086
+  base_rate_on_target: true
+  base_rate_pass_region_accepted:
+  - 12
+  - 24
+  agreement_by_tier:
+    borderline:
+      n: 18
+      agree: 13
+    clear_FP:
+      n: 12
+      agree: 12
+    clear_TP:
+      n: 12
+      agree: 11
+  verdict: PASS
+  verdict_means: PASS = not detectably drifted at this n; it is not evidence of anchoring
+  disagreements:
+  - WMO: 4903365
+    CYCLE_NUMBER: 57
+    PRES_ADJUSTED: 260.0
+    LABEL: 0
+    REF_LABEL: 1
+  - WMO: 5906031
+    CYCLE_NUMBER: 64
+    PRES_ADJUSTED: 180.0
+    LABEL: 1
+    REF_LABEL: 0
+  - WMO: 7901095
+    CYCLE_NUMBER: 84
+    PRES_ADJUSTED: 220.0
+    LABEL: 1
+    REF_LABEL: 0
+  - WMO: 5904678
+    CYCLE_NUMBER: 152
+    PRES_ADJUSTED: 460.0
+    LABEL: 1
+    REF_LABEL: 0
+  - WMO: 5906249
+    CYCLE_NUMBER: 69
+    PRES_ADJUSTED: 460.0
+    LABEL: 1
+    REF_LABEL: 0
+  - WMO: 5906501
+    CYCLE_NUMBER: 68
+    PRES_ADJUSTED: 300.0
+    LABEL: 1
+    REF_LABEL: 0
+  kind: calibration

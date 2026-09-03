@@ -1,0 +1,15 @@
+{
+  "study_id": "net_carbon_v1",
+  "pool_id": "net_carbon_v1/nitrate/subduction",
+  "spec_id": "v1:4d000b93251473f9",
+  "event_type": "nitrate_subduction",
+  "rows": 7503,
+  "content_sha256": "2cf1ff512a1d2afed1ca9f045bb1d2e3b3ddde034971f0d1c915cba7837a3c4b",
+  "cache": {
+    "path": "/Users/mk0964/Documents/release/cache_paper/residual_cache_v4",
+    "fine_grids": 2542,
+    "fine_grids_sha256": "11fce215c7db6cebabfbb0d233d17ed7b6674e388bcfb5b91153449ec35f8299"
+  },
+  "written": "2026-09-02T16:39:28",
+  "file_sha256": "7dec000ca794b28547c41dc3df0080b4a45cdf43617b336370c665226f1dd2db"
+}

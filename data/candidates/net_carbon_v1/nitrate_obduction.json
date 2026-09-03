@@ -1,0 +1,15 @@
+{
+  "study_id": "net_carbon_v1",
+  "pool_id": "net_carbon_v1/nitrate/obduction",
+  "spec_id": "v1:7762b146690be98e",
+  "event_type": "nitrate_obduction",
+  "rows": 13329,
+  "content_sha256": "8dea7f05392a66fbc08ab9668e3547b6418cf2e94fee64ca06a8a8e5fe62fa3b",
+  "cache": {
+    "path": "/Users/mk0964/Documents/release/cache_paper/residual_cache_v4",
+    "fine_grids": 2542,
+    "fine_grids_sha256": "11fce215c7db6cebabfbb0d233d17ed7b6674e388bcfb5b91153449ec35f8299"
+  },
+  "written": "2026-09-02T16:39:27",
+  "file_sha256": "87b63ce63cccaf776ff17d29bddf687957621f003abed424a67c6f47ffe545a1"
+}
