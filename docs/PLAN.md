@@ -23,9 +23,9 @@ table; no other label layer is left in the code.
 Two physical rates are measured, both awaiting an adversarial review:
 
 - **downward** 18.7 % of 133,307 candidate levels, ±14 % relative.
-- **upward** 12.9 % of the open region, 171,578 of the pool's 186,275 levels, ±17 %. The other
-  14,697 levels are the held region, picked earlier by the retired letter's stricter 1.96 σ cut.
-  No random sample covers them, and they wait for a draw of their own.
+- **upward** 12.9 % of 186,275 candidate levels, ±16.5 % relative, from two random samples: the
+  open region (171,578 levels) and the held region (14,697 levels, picked earlier by the retired
+  letter's stricter 1.96 σ cut, labelled 2026-09-04). About 143 more open-region panels reach ±15 %.
 
 ## What is settled
 
@@ -50,14 +50,12 @@ Each step names what it produces and the one number that matters. Estimates are 
 1. **One label layer, one design — done 2026-09-03.** One label table, one criterion, two
    calibration sets, and a classifier trained on the study's own labels. The downward rate
    reproduces to the bit; the upward becomes the open region alone. See `docs/STATUS.md`.
-2. **The upward limb on the study's own footing** *(your labelling, ~2 hours).* Both batches are
-   drawn and rendered (2026-09-04). `calib_obduction_v1`: 42 fresh upward calibration panels, to
-   label twice blind, then decide the disagreements by hand. `rate_obduction_02`: the held region,
-   14,697 levels, as 90 science panels plus 38 blind controls, one panel per float. Order: the
-   calibration copy first, then the batch, then `make load`. *Check: the new rate is compared with
-   today's 12.9 % ± 17 % and the difference is written down.* Worth knowing: this batch gives about
-   ±40 % on the held region's own rate and moves the pool's error bar by about one point. Reaching
-   ±15 % on the pool needs about 195 more open-region panels (see "Still open").
+2. **The upward limb on the study's own footing — done 2026-09-04.** `calib_obduction_v1`: 42
+   fresh upward calibration panels, labelled twice blind (40 of 42 agree, kappa 0.95), the two
+   disagreements decided by hand, the answers frozen at 18/42. `rate_obduction_02`: the held region
+   (14,697 levels) labelled, 128 panels, controls clean, acceptance flat with position. The upward
+   rate now covers the whole pool: 12.9 % of 186,275, ±16.5 % (was 12.9 % of 171,578, ±17.4 %).
+   Left: about 143 more open-region panels reach ±15 % (see "Still open").
 3. **The classifier as a module of its own — done 2026-09-04.** `src/eddy_pump/classifier.py`:
    fit / evaluate / score / calibrate, folds by float, the model saved with a record of how it was
    made. The scores it writes are byte-identical to before (`SCORES_SHA256`). Left: `census.py`, the
@@ -84,7 +82,7 @@ Blocked by nothing here: **the data deposit upload** (yours — the local deposi
 | The particle test on carbon subduction (≥ 1.00 σ backscatter) | keep it at 1.00 and report it; it costs about 3 % of the reference carbon events (archive record) | user |
 | Whether the paper census sits beside the earlier GRL letter's | beside; undecided | user |
 | Sizes of the positive-control, dipole and carbon-obduction arms | from the coverage the study's own samples show, not before | advisor |
-| About 195 more open-region upward panels, to bring the pool rate inside ±15 % | yes, after the held region is labelled; about 1.5 hours of labelling | user |
+| About 143 more open-region upward panels, to bring the pool rate inside ±15 % | yes; about 1.1 hours of labelling (`make rates` gives the number) | user |
 
 ## Hard rules
 

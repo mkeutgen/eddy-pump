@@ -40,11 +40,9 @@ orders which panels a human sees first; it never enters a number.
 
 Two rates measured so far, both awaiting an adversarial review:
 
-- **upward** 12.9 % ± 17 % relative, over the open region — the 171,578 of the pool's 186,275
-  candidate levels that were sampled at random. The other 14,697 are the held region: picked
-  earlier by the retired letter's stricter 1.96 σ cut. No random sample covers them yet, so they
-  wait for a draw of their own.
-- **downward** 18.7 % ± 14 % relative, over all 133,307 candidate levels of that pool.
+- **upward** 12.9 % ± 16.5 % relative, over the whole pool's 186,275 candidate levels, from two
+  random samples: the open region (171,578 levels) and the held region (14,697 levels, picked
+  earlier by the retired letter's stricter 1.96 σ cut, labelled 2026-09-04).
 
 Every rate names its denominator; a uniform-random sample measures a rate, a score-ranked one never
 does. "Complete" always says against which pool. The words used here are defined at the top of

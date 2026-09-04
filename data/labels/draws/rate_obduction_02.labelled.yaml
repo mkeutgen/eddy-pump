@@ -1,0 +1,135 @@
+# data/labels/draws/rate_obduction_02.labelled.yaml -- the session read and the hashes of the labelled sheet. Built by
+# pipeline/load_batch.py; never edited by hand.
+batch_id: rate_obduction_02
+ingested: '2026-09-04T16:52:22-05:00'
+worksheet_mtime: '2026-09-04T16:52:04-05:00'
+anchor:
+  batch_id: calib_obduction_v1_pass2
+  worksheet_mtime: '2026-09-04T16:20:58-05:00'
+  kappa: 0.9517241379310344
+labelled_sheet:
+  path: results/net_carbon_v1/labeling/rate_obduction_02/rate_obduction_02_LABELLED_20260904T215222Z.csv
+  sha256: f127214e1743d1fae50a6a7eacafb63f8b590f7d8314059e75b5e21e9bcf4a70
+rows: 128
+decided: 125
+accepted: 30
+uncertain: 3
+blank: 0
+session:
+  kind: rate
+  n_rows: 128
+  n_decided: 125
+  n_accepted: 30
+  n_rejected: 95
+  n_uncertain: 3
+  n_blank: 0
+  position:
+  - bin: 1
+    sid_lo: 1.0
+    sid_hi: 32.0
+    n: 32
+    accept: 0.21875
+  - bin: 2
+    sid_lo: 33.0
+    sid_hi: 63.0
+    n: 31
+    accept: 0.25806451612903225
+  - bin: 3
+    sid_lo: 65.0
+    sid_hi: 95.0
+    n: 31
+    accept: 0.2903225806451613
+  - bin: 4
+    sid_lo: 96.0
+    sid_hi: 127.0
+    n: 31
+    accept: 0.1935483870967742
+  trend_p_mann_whitney: 0.9515999651386539
+  change_point:
+    sample_id: 118.0
+    accept_before: 0.25862068965517243
+    accept_after: 0.0
+    p_raw: 0.11252349032783743
+    p_adjusted: 1.0
+    verdict: none
+  key_opened: true
+  warnings:
+  - 3 uncertain — a rising uncertain rate is a fatigue signal
+  - the worksheet already carries `LATITUDE`, `LONGITUDE`, `SAMPLE_ID`, `TIME` — the answer key ANSWER_KEY_do_not_open.csv
+    is the authority, so the worksheet's copy was dropped before the join
+  controls:
+    pos_ctrl:
+      n: 16
+      accepted: 15
+      ci95:
+      - 0.7430785701142262
+      - 0.9931712779441131
+    neg_ctrl:
+      n: 20
+      accepted: 3
+      ci95:
+      - 0.04413134197515587
+      - 0.34857771085845396
+      ceiling: 0.2
+      ceiling_note: display only; at equality nothing fires — the test is Fisher against the negatives' own blind
+        history
+      with_score_above_0p5:
+        n: 0
+        accepted: 0
+        note: a rejected candidate the classifier calls likely is a plausible detector miss, not a control
+  target_by_stratum:
+    former_held|200-260:
+      n: 30
+      accepted: 4
+    former_held|260-400:
+      n: 15
+      accepted: 2
+    former_held|400-600:
+      n: 10
+      accepted: 3
+    former_held|600-1000:
+      n: 8
+      accepted: 1
+    former_held|<=200:
+      n: 26
+      accepted: 2
+  target_raw_acceptance_unweighted: 0.1348314606741573
+  target_previously_judged:
+    n: 0
+    accepted: 0
+  target_position_quarters:
+  - quarter: 1
+    n: 23
+    accept: 0.043478260869565216
+  - quarter: 2
+    n: 22
+    accept: 0.13636363636363635
+  - quarter: 3
+    n: 22
+    accept: 0.2727272727272727
+  - quarter: 4
+    n: 22
+    accept: 0.09090909090909091
+  target_halves:
+    first:
+      n: 45
+      accept: 0.08888888888888889
+    second:
+      n: 44
+      accept: 0.18181818181818182
+    by_stratum:
+      former_held|200-260:
+        first: 0.125
+        second: 0.14285714285714285
+      former_held|260-400:
+        first: 0.0
+        second: 0.25
+      former_held|400-600:
+        first: 0.25
+        second: 0.3333333333333333
+      former_held|600-1000:
+        first: 0.2
+        second: 0.0
+      former_held|<=200:
+        first: 0.0
+        second: 0.15384615384615385

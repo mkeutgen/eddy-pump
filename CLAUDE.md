@@ -76,6 +76,6 @@ every subagent runs on Opus.
 
 The whole pipeline runs on the study's one label table (`study_reviews.parquet` +
 `study_batches.yaml` + `draws/*.yaml`); there is no old label layer in the code. The upward rate
-covers the open region alone — the 171,578 levels of that pool that were sampled at random. The
-other 14,697 are the held region. They were picked earlier by the retired letter's stricter 1.96 σ
-cut, and they wait for a draw of their own (`docs/PLAN.md`).
+covers the whole pool from two random samples: the open region (171,578 levels) and the held
+region (14,697 levels, picked earlier by the retired letter's stricter 1.96 σ cut, labelled
+2026-09-04). Both regions have their own draw record (`docs/PLAN.md`).

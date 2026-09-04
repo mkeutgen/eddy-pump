@@ -4,6 +4,18 @@ The dated log: one entry per working day, newest first. Every number here was re
 that produces it, on the date shown. The plan is `docs/PLAN.md`; the decisions in force are
 `docs/DECISIONS.md`; the words are defined in `docs/IMPLEMENTATION_NOTES.md`.
 
+## 2026-09-04, evening
+
+**The upward limb stands on its own footing: both batches labelled, the whole pool sampled.**
+
+- `calib_obduction_v1`: two blind passes, 40 of 42 agree; the two "unsure" of pass 1 decided by
+  hand (both no); reference frozen at 18/42; pass 2 against it: kappa 0.95, base rate on target, PASS.
+- `rate_obduction_02`, the held region, 128 panels: 30 accepted, 95 rejected, 3 unsure. Positive
+  controls 15/16, negative 3/20 (under the 20 % ceiling); acceptance flat with position (p = 0.95).
+- The upward rate now covers the whole pool: 12.9 % of 186,275 levels (0.1288, ±16.5 % relative;
+  before: 12.9 % of 171,578, ±17.4 %). `make rates` says 143 more open-region panels reach ±15 %
+  (about 1.1 h). The downward rate is unchanged.
+
 ## 2026-09-04, later
 
 **Three audits, every finding fixed, in both repositories.**

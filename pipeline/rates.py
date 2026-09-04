@@ -74,12 +74,16 @@ def main() -> None:
         n_needed = int(np.ceil(res["n"] * v_open_now / max(v_target, 1e-12))) if v_target > 0 else None
         more = max(0, n_needed - res["n"]) if n_needed else None
         # the drift band: the rate if the whole session had read like the first half / the second half
+        # Each batch reads its own strata; a pool sampled in two regions (the upward limb: the open
+        # region, then the former held region) adds the two contributions, weighted by stratum size.
         halves = {}
         for b, l in labelled.items():
             th = l["session"].get("target_halves")
             if th:
                 for side in ("first", "second"):
-                    halves[side] = sum(N_h[s] / N_open * (th["by_stratum"][s][side] if th["by_stratum"][s][side] is not None else 0.0) for s in N_h)
+                    halves[side] = halves.get(side, 0.0) + sum(
+                        N_h[s] / N_open * (v[side] if v[side] is not None else 0.0)
+                        for s, v in th["by_stratum"].items() if s in N_h)
         sess = {b: l["session"] for b, l in labelled.items()}
         flags = []
         for b, s in sess.items():
