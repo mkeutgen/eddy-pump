@@ -1,4 +1,4 @@
-# PLAN — what is next (2026-09-03)
+# PLAN — what is next (2026-09-04)
 
 **This is the only plan.** It says what is settled, what comes next in what order, and what is still
 open. The rulings in force are `docs/DECISIONS.md`, each linking the archive commit with the
@@ -52,9 +52,14 @@ Each step names what it produces and the one number that matters. Estimates are 
    Then `census.py` (the calibrated census) once the upward limb is on its own footing. *Check: the
    honest out-of-fold AUC and the calibration curve are in the manifest; the rates do not change.*
    *One day.*
-4. **The cache builder moves to argopod.** A generic "build a fleet cache from a float list and a
-   policy" tool; the study passes its policy from `events.yaml`; argopod `0bc30e3` tagged v0.5.1 and
-   pinned here. *Check: one float rebuilt reproduces its grid byte for byte.* *One day.*
+4. **The cache builder moved to argopod — done 2026-09-04.** Building a fleet of residual grids
+   from a float list and a recipe is now generic and lives in the library (`argopod.cache`, v0.5.1,
+   pinned here). The study supplies the recipe — the four grid flavours, the dates, the placeholder
+   rule and the check ceilings in the new `cache:` block of `config/events.yaml`, joined in code to
+   the plausible ranges, the nine floats left out and the backscatter smoother already written
+   there — and the float list, `config/fleet.csv` (2,574 floats). **Four floats, one per grid
+   flavour, rebuild byte for byte identical to the bound cache**: `make check-cache`, about a
+   minute. See `docs/STATUS.md`.
 5. **Tests and documents of the new repository.** ~8 test files with one pins file and the strict
    mode; the record holds only the rulings in force; remove the `domain.py` shim and rewire its two
    tests. *Check: a cold read answers the seven questions in under 400 lines; the tests pass in

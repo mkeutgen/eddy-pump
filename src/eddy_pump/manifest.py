@@ -3,9 +3,10 @@
 reads  config/events.yaml, and the CACHE_IDENTITY.json that manifest names
 writes nothing
 
-Entry point: `load_manifest()`, aliased `load_study()`, returning a Study with its pools. It
-refuses a manifest whose declared spec_id disagrees with the digest of its own content, whose
-per-limb AOU sign disagrees with the code, or which sets a field the spec digest cannot see.
+Entry point: `load_manifest()`, aliased `load_study()`, returning a Study with its pools and the
+fleet-cache recipe. It refuses a manifest whose declared spec_id disagrees with the digest of its
+own content, whose per-limb AOU sign disagrees with the code, which sets a field the spec digest
+cannot see, or which does not say how its cache is built.
 """
 from __future__ import annotations
 
@@ -15,6 +16,7 @@ import os
 from pathlib import Path
 
 from argopod import DetectionParams, VariableConfig
+from argopod.config import FILL_POLICY_CHOICES
 
 from .spec import (
     DECLARED_PARAM_FIELDS,
@@ -22,7 +24,7 @@ from .spec import (
     CandidatePool,
     EventSpec,
 )
-from .study import CacheIdentity, ExcludedFloat, OutputRootPolicy, Study
+from .study import CacheBuild, CacheIdentity, ExcludedFloat, OutputRootPolicy, Study
 from .vocabulary import CHANNELS, PHYSICAL, Direction, Tracer
 
 __all__ = ["REPO_ROOT", "MANIFEST_PATH", "GLOBARGO_DATA", "load_manifest", "load_study"]
@@ -220,6 +222,94 @@ def _as_excluded_float(item: dict, where: str) -> ExcludedFloat:
                          reason=str(item["reason"]), evidence=str(item.get("evidence", "")))
 
 
+#: The keys the `cache:` block may carry. The rest of a fleet-cache policy — the ranges, the
+#: floats left out, the smoother — is declared elsewhere in this file and joined in
+#: `Study.cache_policy()`, so naming one here would give one setting two authors.
+CACHE_KEYS: tuple[str, ...] = (
+    "labels", "window", "fill_policy", "adjusted_fallback", "residual_ceilings",
+)
+
+#: A key that belongs to a fleet-cache policy but is NOT the study's to declare here -> where it
+#: really lives. Refused by name, because a build that reads one of these from `cache:` would run
+#: a recipe the rest of the manifest does not describe.
+CACHE_KEYS_DECLARED_ELSEWHERE: dict[str, str] = {
+    "raw_ranges": "the 'raw_inputs:' block",
+    "derived_ranges": "each channel's own 'prefilter:' block",
+    "prefilters": "the channel that asks for the smoother (tracers.carbon.prefilter)",
+    "exclusions": "the 'excluded_floats:' block",
+    "params": "argopod's own defaults — the grid knobs are not this study's to move",
+}
+
+
+def _as_cache_build(block, where: str) -> CacheBuild:
+    """The `cache:` mapping -> a :class:`~eddy_pump.study.CacheBuild`.
+
+    A missing block is refused, not defaulted: the fleet cache is what every candidate stands on,
+    and a build whose recipe is half in a file and half in code cannot be reproduced.
+    """
+    if block is None:
+        raise ValueError(
+            f"{where}: no 'cache' block. How the fleet cache is built is part of the one source, "
+            f"not a default in code — declare {', '.join(CACHE_KEYS)}.")
+    if not isinstance(block, dict):
+        raise ValueError(f"{where}: 'cache' must be a mapping, got {type(block).__name__}")
+    unknown = sorted(set(block) - set(CACHE_KEYS))
+    if unknown:
+        elsewhere = [k for k in unknown if k in CACHE_KEYS_DECLARED_ELSEWHERE]
+        if elsewhere:
+            raise ValueError(
+                f"{where}: cache sets {elsewhere}, which this study declares elsewhere — "
+                + "; ".join(f"{k} comes from {CACHE_KEYS_DECLARED_ELSEWHERE[k]}" for k in elsewhere)
+                + ". Two authors for one setting is how the file and the build drift apart.")
+        raise ValueError(
+            f"{where}: unknown cache key(s) {unknown}. Valid keys are: {', '.join(CACHE_KEYS)}")
+
+    labels_block = block.get("labels")
+    if not labels_block:
+        raise ValueError(
+            f"{where}: cache declares no 'labels' — the grid flavours and the channels each one "
+            f"carries. A flavour names the two files a float gets, so it cannot be inferred.")
+    if not isinstance(labels_block, dict):
+        raise ValueError(f"{where}: cache.labels must map a flavour to its list of channel names")
+    labels = {}
+    for name, channels in labels_block.items():
+        if isinstance(channels, str) or not isinstance(channels, (list, tuple)):
+            raise ValueError(f"{where}: cache.labels.{name} must list its channel names")
+        labels[str(name)] = tuple(str(c) for c in channels)
+
+    window_block = block.get("window")
+    if window_block is None:
+        since = until = None
+    elif not isinstance(window_block, dict):
+        raise ValueError(f"{where}: cache.window must be a mapping with 'since' and/or 'until'")
+    else:
+        stray = sorted(set(window_block) - {"since", "until"})
+        if stray:
+            raise ValueError(f"{where}: cache.window takes only 'since' and 'until', got {stray}")
+        since, until = window_block.get("since"), window_block.get("until")
+
+    fill_policy = str(block.get("fill_policy", "mask"))
+    if fill_policy not in FILL_POLICY_CHOICES:
+        raise ValueError(
+            f"{where}: cache.fill_policy must be one of {list(FILL_POLICY_CHOICES)}, "
+            f"got {fill_policy!r}")
+
+    ceilings = block.get("residual_ceilings") or {}
+    if not isinstance(ceilings, dict):
+        raise ValueError(f"{where}: cache.residual_ceilings must map a channel to its ceiling")
+
+    try:
+        return CacheBuild(
+            labels=labels,
+            window=(None if since is None else str(since), None if until is None else str(until)),
+            fill_policy=fill_policy,
+            adjusted_fallback=str(block.get("adjusted_fallback", "cycle")),
+            residual_ceilings=ceilings,
+        )
+    except ValueError as exc:
+        raise ValueError(f"{where}: cache block: {exc}") from exc
+
+
 def _resolve(path_str, base: Path) -> Path:
     """A manifest path -> absolute. Relative paths resolve against the REPO ROOT."""
     p = Path(str(path_str)).expanduser()
@@ -306,6 +396,8 @@ def load_manifest(path: str | Path | None = None) -> Study:
         forbidden_roots=tuple(_resolve(p, root)
                               for p in study_block.get("forbidden_output_roots", ())),
     )
+
+    cache_build = _as_cache_build(raw.get("cache"), where)
 
     spec_version = str(raw.get("spec_version") or "")
     if not spec_version:
@@ -422,7 +514,7 @@ def load_manifest(path: str | Path | None = None) -> Study:
 
     return Study(study_id=study_id, cache=cache, output=output, pools=tuple(pools),
                  spec_version=spec_version, params=params, manifest_path=path,
-                 input_ranges=input_ranges, excluded_floats=excluded)
+                 input_ranges=input_ranges, excluded_floats=excluded, cache_build=cache_build)
 
 
 #: Readable alias — `load_study()` says what comes back.

@@ -14,7 +14,7 @@ dependencies = [
     # instead?  pip re-clones a direct URL even when a matching argopod is already
     # installed, so use the documented second path: install `../argopod[all,dev]`
     # and then this repo with --no-deps (README "Reproduce it").
-    "argopod[cli,ml,review] @ git+https://github.com/mkeutgen/argopod@v0.5.0",
+    "argopod[cli,ml,review] @ git+https://github.com/mkeutgen/argopod@v0.5.1",
     "numpy>=1.26",
     "pandas>=2.1",
     "pyarrow>=14.0",    # cached residual parquets

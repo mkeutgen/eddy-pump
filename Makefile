@@ -8,6 +8,8 @@
 #   make test                the tests (also `make check`)
 #   make fetch-caches        the fleet cache from the data deposit (needed only to re-detect)
 #   make fetch-companion     the earlier subduction study's tables ($GLOBARGO_DATA)
+#   make check-cache         rebuild four floats and compare their grids with the bound cache (~1 min)
+#   make build-cache OUT=… RAW=… | verify-cache OUT=…   build a fleet cache, or read one back
 #
 # Cut fresh from mkeutgen/eddy-pump-archive at tag archive-2026-09-03 (commit cbd6fd6). The archive
 # holds the full history and the retired GRL letter (its own tag letter-v1); the data deposit holds

@@ -2,6 +2,12 @@
 #
 # study:            the study id, the review criterion, the cache the saved candidate lists are
 #                   bound to, where outputs go and where they must never go
+# cache:            how the fleet cache is built: the four grid flavours and the channels each one
+#                   carries, the dates kept, what happens to a placeholder value, which column a
+#                   cycle falls back to, and the ceilings the cache check uses. The plausible
+#                   ranges, the floats left out and the backscatter smoother are already declared
+#                   below (raw_inputs, excluded_floats, tracers.carbon.prefilter) and are joined to
+#                   this block in code, so nothing is written down twice
 # spec_version:     the version prefix of every spec_id
 # params:           the one detector knob the study moved (the local-extremum test is off)
 # directions:       the AOU sign per limb (negative = subduction, positive = obduction)
@@ -33,6 +39,24 @@ study:
   forbidden_output_roots:
     - results/obduction     # a retired output tree the active study must never write into
     - results/scan          # a retired read-only cache the active study must never write into
+
+cache:
+  labels:                 # grid flavour -> the channels that grid carries, in this order
+    paper_phys: [AOU, ABS_SAL, SIGMA0]
+    paper_bbp:  [AOU, ABS_SAL, BBP700_ADJUSTED, SIGMA0]
+    paper_nit:  [AOU, ABS_SAL, NITRATE_ADJUSTED, SIGMA0]
+    paper_all:  [AOU, ABS_SAL, NITRATE_ADJUSTED, BBP700_ADJUSTED, SIGMA0]
+  window:                 # the profile dates kept, both ends included
+    since: 2009-01-08
+    until: 2026-03-15
+  fill_policy: mask       # a placeholder value becomes "no reading" before anything is derived from it
+  adjusted_fallback: cycle  # a cycle with no delayed-mode column reads the raw one, that cycle only
+  residual_ceilings:      # the largest scaled residual the cache check accepts; null = reported, not checked
+    AOU: 1000
+    ABS_SAL: 1000
+    NITRATE_ADJUSTED: 1000
+    SIGMA0: 1000
+    BBP700_ADJUSTED: null
 
 spec_version: v1
 

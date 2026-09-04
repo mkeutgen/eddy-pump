@@ -32,7 +32,7 @@ create a second plan.
 | this repo | the study: `data/candidates/net_carbon_v1/` (the six saved lists), the human labels, the pipeline (`pipeline/`), the code (`src/eddy_pump/`) |
 | `~/Documents/release/eddy-pump-archive` | the full history that built this; the retired letter at tag `letter-v1`; the old record (`docs/DECISIONS.md`, 7,000+ lines) cited by commit |
 | the data deposit (Zenodo, DOI pending; local `~/Documents/release/zenodo-study-deposit`) | the fleet cache (4.6 GB, fingerprint `11fce215…`), the old labels, the old candidate tables |
-| `~/Documents/release/argopod` | the generic library (pinned v0.5.0; v0.5.1 in progress) |
+| `~/Documents/release/argopod` | the generic library, the fleet-cache builder included (pinned v0.5.1) |
 | `~/Documents/release/.venv` | THE python (3.14); the study needs no R |
 
 ## The rules that matter
@@ -56,7 +56,9 @@ create a second plan.
 
 `make study-help` prints the pipeline rules. The study: `make draw-batch` (draw the labelling
 batch), `make review BATCH=…` (label, blind), `make calibrate SHEET=…` (check a blind re-labelling
-of the 42 calibration panels), then `make ingest BATCH=…` and `make rates`. Tests: `make test`.
+of the 42 calibration panels), then `make ingest BATCH=…` and `make rates`. `make check-cache`
+rebuilds four floats and checks their grids are byte-identical to the bound cache. Tests:
+`make test`.
 
 Models: Opus for day-to-day work; Fable only to orchestrate or to audit a number before it ships;
 every subagent runs on Opus.

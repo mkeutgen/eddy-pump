@@ -1,11 +1,14 @@
 """One study: the cache it is bound to, where it may write, its pools and its declared fleet.
 
-Entry points: `Study` (pool lookup, excluded floats, cache-build ranges, `detector_configs`),
-`CacheIdentity`, `OutputRootPolicy`, `DetectorConfig` and `ExcludedFloat`.
+Entry points: `Study` (pool lookup, excluded floats, cache-build ranges, `cache_policy`,
+`detector_configs`), `CacheIdentity`, `CacheBuild`, `OutputRootPolicy`, `DetectorConfig` and
+`ExcludedFloat`.
 """
 from __future__ import annotations
 
+import dataclasses
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,6 +19,7 @@ from .vocabulary import Direction, Tracer, channel_of
 
 __all__ = [
     "CacheIdentity",
+    "CacheBuild",
     "OutputRootPolicy",
     "DetectorConfig",
     "ExcludedFloat",
@@ -68,6 +72,62 @@ class CacheIdentity:
                      "fine_grids_sha256": other.fine_grids_sha256}
         return (self.fine_grids, self.fine_grids_sha256) == (
             int(other["fine_grids"]), str(other["fine_grids_sha256"]))
+
+
+@dataclass(frozen=True)
+class CacheBuild:
+    """HOW the fleet cache is built — the half of the recipe that is a science choice.
+
+    Read from the `cache:` block of `config/events.yaml`. The other half is already written down
+    elsewhere in the same file — the plausible ranges (`raw_inputs:` and each channel's
+    `prefilter:`), the floats left out (`excluded_floats:`) and the backscatter smoother — and
+    :meth:`Study.cache_policy` joins the two, so nothing is declared twice.
+
+    Fields
+    ------
+    labels
+        Grid flavour -> the channels that grid carries, in order. A float earns the richest
+        flavour its data fits, and the flavour names its two files.
+    window
+        `(since, until)` ISO dates. A profile outside them is dropped; both ends are kept.
+    fill_policy
+        `"mask"` turns a placeholder value into "no reading" before anything is derived from it.
+    adjusted_fallback
+        What a cycle with no delayed-mode column falls back to.
+    residual_ceilings
+        Channel -> the largest scaled residual `make verify-cache` accepts. `None` means the
+        channel is reported but not checked.
+    """
+
+    labels: Mapping[str, tuple[str, ...]]
+    window: tuple[str | None, str | None] = (None, None)
+    fill_policy: str = "mask"
+    adjusted_fallback: str = "cycle"
+    residual_ceilings: Mapping[str, float | None] = dataclasses.field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        labels = {str(k): tuple(str(c) for c in v) for k, v in dict(self.labels).items()}
+        if not labels:
+            raise ValueError("the cache block declares no grid flavours")
+        for name, channels in labels.items():
+            if not channels:
+                raise ValueError(f"cache flavour {name!r} declares no channels")
+        object.__setattr__(self, "labels", labels)
+        since, until = tuple(self.window)
+        object.__setattr__(self, "window", (
+            None if since is None else str(since), None if until is None else str(until)))
+        object.__setattr__(self, "residual_ceilings", {
+            str(k): (None if v is None else float(v))
+            for k, v in dict(self.residual_ceilings).items()})
+
+    @property
+    def channels(self) -> tuple[str, ...]:
+        """Every channel any flavour carries, in declaration order, each once."""
+        seen: dict[str, None] = {}
+        for channels in self.labels.values():
+            for name in channels:
+                seen.setdefault(name, None)
+        return tuple(seen)
 
 
 @dataclass(frozen=True)
@@ -177,6 +237,9 @@ class Study:
     #: no `spec_id`, for the same reason as :attr:`input_ranges`. See `config/events.yaml`, the
     #: `excluded_floats:` block.
     excluded_floats: tuple[ExcludedFloat, ...] = ()
+    #: How the fleet cache is built. See `config/events.yaml`, the `cache:` block. Always present
+    #: on a study that came from the manifest — the loader refuses a file without the block.
+    cache_build: CacheBuild | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "pools", tuple(self.pools))
@@ -280,6 +343,50 @@ class Study:
         ``"derived"``  applied after derivation and before `downscale`, on the detection channels.
         """
         return {"raw": self.input_ranges, "derived": self.channel_ranges()}
+
+    def cache_policy(self):
+        """The whole fleet-cache recipe, as the `argopod.cache.CachePolicy` a build consumes.
+
+        Four things are joined here, each from the one place it is written down: the grid
+        flavours, the dates, the placeholder rule and the check ceilings from the `cache:` block;
+        the plausible ranges from `raw_inputs:` and the channels' own `prefilter:` blocks; the
+        floats left out from `excluded_floats:`; the backscatter smoother from the channel that
+        asks for it.
+
+        THE GRID KNOBS ARE ARGOPOD'S DEFAULTS, not :attr:`params`. The frozen cache was built
+        under the defaults, and the one knob this study moves — the local-extremum test — acts at
+        detection time and never touches a grid. Passing the study's block instead would be
+        harmless today and silent damage the day a detection knob starts mattering to a bin.
+        """
+        # Local import: nothing but a cache build needs these, so `import eddy_pump` stays cheap.
+        from argopod.cache import CachePolicy, Exclusion
+
+        if self.cache_build is None:
+            raise ValueError(
+                f"{self.study_id} carries no cache block, so there is no policy to build under. "
+                f"It comes from config/events.yaml `cache:`; load the study with load_manifest().")
+        build = self.cache_build
+        ranges = self.cache_build_ranges()
+        # The one smoother, taken from the channel that declares it rather than re-typed: a
+        # second author for it is how the file and the build drift apart.
+        prefilters = tuple(
+            VariableConfig(name, pre_median_filter=True)
+            for name in sorted({v.name for p in self.pools for v in p.spec.variables
+                                if v.pre_median_filter}))
+        return CachePolicy(
+            labels=dict(build.labels),
+            params=dataclasses.replace(DetectionParams(), fill_policy=build.fill_policy),
+            window=build.window,
+            raw_ranges=ranges["raw"],
+            derived_ranges=ranges["derived"],
+            prefilters=prefilters,
+            adjusted_fallback=build.adjusted_fallback,
+            exclusions=tuple(
+                Exclusion(wmo=r["WMO"], ruled=r["ruled"], ruled_by=r["ruled_by"],
+                          reason=r["reason"], evidence=r["evidence"])
+                for r in self.exclusion_records()),
+            residual_ceilings=dict(build.residual_ceilings),
+        )
 
     # --- the detectors ----------------------------------------------------- #
     def detector_configs(self) -> dict[str, DetectorConfig]:

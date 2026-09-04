@@ -43,10 +43,15 @@ SUMMARY = "CANDIDATES.json"
 # --------------------------------------------------------------------------- #
 def live_cache_identity(cache_dir: Path) -> CacheIdentity:
     """The identity of the cache on disk: the number of fine grids and the sha256 of their sorted
-    file names. Milliseconds, and it tells two caches apart at a glance."""
-    names = sorted(p.name for p in Path(cache_dir).glob("*_fine.parquet"))
-    return CacheIdentity(path=Path(cache_dir), fine_grids=len(names),
-                         fine_grids_sha256=hashlib.sha256("\n".join(names).encode()).hexdigest())
+    file names. Milliseconds, and it tells two caches apart at a glance.
+
+    The recipe is argopod's (`argopod.cache.cache_identity`), so the fingerprint a build writes
+    and the fingerprint this study checks are the same two numbers computed the same way."""
+    from argopod.cache import cache_identity  # argopod[cache]; local, so `import eddy_pump` is cheap
+
+    ident = cache_identity(cache_dir)
+    return CacheIdentity(path=Path(cache_dir), fine_grids=ident["fine_grids"],
+                         fine_grids_sha256=ident["fine_grids_sha256"])
 
 
 def require_bound_cache(study: Study) -> CacheIdentity:

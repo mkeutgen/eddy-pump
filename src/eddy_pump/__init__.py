@@ -17,7 +17,14 @@ from .spec import (
     declared_content,
     undeclared_settings,
 )
-from .study import CacheIdentity, DetectorConfig, ExcludedFloat, OutputRootPolicy, Study
+from .study import (
+    CacheBuild,
+    CacheIdentity,
+    DetectorConfig,
+    ExcludedFloat,
+    OutputRootPolicy,
+    Study,
+)
 from .vocabulary import CANONICAL_EVENT_TYPES, CHANNELS, PHYSICAL, Direction, Tracer
 
 __all__ = [
@@ -26,6 +33,7 @@ __all__ = [
     "DECLARED_PARAM_FIELDS",
     "DECLARED_VARIABLE_FIELDS",
     "PHYSICAL",
+    "CacheBuild",
     "CacheIdentity",
     "CandidateKey",
     "CandidatePool",

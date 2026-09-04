@@ -28,6 +28,18 @@ road that built it.
   `11fce215…` (`data/candidates/net_carbon_v1/CACHE_IDENTITY.json`). It is not in git; it is in the
   data deposit. **Why:** the grids cannot be rebuilt bit-identically from a fresh Argo pull. *(Archive:
   the cache rulings, the fourth build.)*
+- **The cache builder is generic and lives in argopod** (`argopod.cache`, v0.5.1). The study keeps
+  only what is its own: the recipe — the four grid flavours and their channels, the dates, the
+  placeholder rule, the check ceilings (the `cache:` block of `config/events.yaml`), joined in code
+  to the plausible ranges, the nine floats left out and the backscatter smoother already declared in
+  the same file — and the float list, `config/fleet.csv` (2,574 floats, each promised a flavour).
+  A build never targets the bound cache's own directory. **Why:** the study should hold the choices
+  and none of the plumbing, and the recipe should be readable in one place. *(Evidence, 2026-09-04:
+  four floats, one per flavour — 2901074, 1901339, 1901378, 6903247 — rebuild to grids whose sha256
+  match the bound cache exactly, with the old script's own rebuild on today's libraries as the
+  baseline; `argopod.cache.cache_identity` returns the same fingerprint the study checks. The old
+  script, `scripts/build_paper_cache.py` at `eddy-pump-archive` tag `archive-2026-09-03`, is
+  retired.)*
 - **The salinity magnitude is a reported covariate, never a gate.** **Why:** the noise floor was
   refused against the verified events. *(Archive: the salinity floor.)*
 

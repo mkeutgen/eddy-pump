@@ -55,7 +55,12 @@ make study-help        # the pipeline rules, in order
 make test              # the tests
 make -n rates          # print what refreshing the rate report would run
 make verify-candidates # re-detect the six pools and compare with the saved lists (needs the cache, ~36 min)
+make check-cache       # rebuild four floats and check their grids are byte-identical to the bound cache (~1 min)
 ```
+
+Rebuilding the whole fleet cache is a deliberate act and never part of a run:
+`make build-cache OUT=<new dir> RAW=<staged raw frames>`, then `make verify-cache OUT=<new dir>`.
+It refuses to write into the cache the saved lists are bound to. See `docs/IMPLEMENTATION_NOTES.md`.
 
 The labelling loop, blind: `make draw-batch`, `make review BATCH=…`, `make calibrate SHEET=…`,
 `make ingest BATCH=…`, then `make rates`.
@@ -73,7 +78,7 @@ DEPOSIT_DIR=/path/to/zenodo-study-deposit make fetch-caches   # until the Zenodo
 | this repo | the study: the saved candidate lists, the human labels, the definitions, the pipeline, the classifier |
 | `mkeutgen/eddy-pump-archive` (tag `archive-2026-09-03`, commit `cbd6fd6`) | the full history that built this, and the retired GRL letter (its own tag `letter-v1`) |
 | the data deposit (Zenodo, DOI pending) | the fleet cache (4.6 GB), the old labels, the old paper's candidate tables |
-| `mkeutgen/argopod` | the generic library (pinned v0.5.0; v0.5.1 in progress) |
+| `mkeutgen/argopod` | the generic library, including the fleet-cache builder (pinned v0.5.1) |
 
 ## Provenance
 
