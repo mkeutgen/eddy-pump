@@ -25,7 +25,7 @@ from eddy_pump.manifest import load_manifest
 
 REPO = Path(__file__).resolve().parents[1]
 SAVED = REPO / "data/candidates/net_carbon_v1"
-pytestmark = pytest.mark.skipif(not (SAVED / C.SUMMARY).exists(), reason="run production/detect_study.py --write")
+pytestmark = pytest.mark.skipif(not (SAVED / C.SUMMARY).exists(), reason="run pipeline/detect.py --write")
 
 ROWS = PINS["pool_rows"]
 CACHE_SHA = PINS["cache_fingerprint"]
@@ -109,3 +109,59 @@ def test_a_child_without_its_parent_is_refused(study):
     child = next(p for p in study.pools if p.parent is not None)
     with pytest.raises(ValueError, match="without their directional parents"):
         C.detect_study(study, [child])
+
+
+# --------------------------------------------------------------------------- #
+# reading the grids: one door, and nothing swallowed
+# --------------------------------------------------------------------------- #
+def _fake_pair(d: Path, wmo: int, flavour: str, columns: list[str], corrupt: bool = False) -> None:
+    """A coarse+fine pair for one float, valid or unreadable."""
+    for grid in ("coarse", "fine"):
+        path = d / f"{wmo}_{flavour}_{grid}.parquet"
+        if corrupt:
+            path.write_text("this is not a parquet file")
+        else:
+            frame = pd.DataFrame({c: pd.Series(dtype="float64") for c in columns})
+            frame.to_parquet(path, index=False)
+
+
+def test_a_grid_that_is_not_there_names_the_file_it_is_not_in(tmp_path):
+    """argopod's provider owns the file layout, so the message names the paths, not the float."""
+    with pytest.raises(FileNotFoundError) as exc:
+        C.read_grids(tmp_path, 1900001, "paper_phys")
+    assert "1900001_paper_phys_coarse.parquet" in str(exc.value)
+    assert "1900001_paper_phys_fine.parquet" in str(exc.value)
+
+
+def test_every_float_in_the_cache_gets_one_flavour_and_the_choice_is_not_the_globs(tmp_path):
+    for wmo, flavour in ((1900001, "paper_phys"), (1900002, "paper_all")):
+        _fake_pair(tmp_path, wmo, flavour, ["PRES_ADJUSTED"])
+    # a coarse grid with no fine twin is not a float the cache can serve
+    (tmp_path / "1900003_paper_nit_coarse.parquet").write_text("x")
+    assert C.float_flavours(tmp_path) == {1900001: "paper_phys", 1900002: "paper_all"}
+    # two flavours for one float would be a broken cache; the answer is still the same everywhere
+    grids = {"paper_phys": {77: "paper_phys"}, "paper_all": {77: "paper_all"}}
+    assert C.float_flavours(tmp_path, grids) == {77: "paper_all"}
+
+
+def test_a_float_whose_grids_will_not_open_is_counted_and_named_not_skipped(study, tmp_path):
+    """The old read swallowed every error, so a cache half on disk produced a short list that
+    looked complete. Now the float is recorded, and `pipeline/detect.py` stops on the record."""
+    pool = study.pool("physical", "obduction")
+    columns = ["CYCLE_NUMBER", "PRES_ADJUSTED"] + \
+        [f"{v.name}_SCALE_RES_ROB" for v in pool.spec.variables]
+    _fake_pair(tmp_path, 1, "toy", columns)                  # readable: the flavour probe reads this
+    _fake_pair(tmp_path, 2, "toy", columns, corrupt=True)
+    grids = {"toy": {1: "toy", 2: "toy"}}
+
+    failures: list[C.GridFailure] = []
+    C.detect_pool(pool, study, grids, cache_dir=tmp_path, failures=failures)
+    unreadable = [f for f in failures if f.wmo == 2]
+    assert len(unreadable) == 1
+    assert unreadable[0].stage == "read" and unreadable[0].flavour == "toy"
+    assert unreadable[0].pool_id == pool.pool_id
+    assert "2" in str(unreadable[0]) and "read" in str(unreadable[0])
+
+    # and with nowhere to record it, the failure is raised rather than lost
+    with pytest.raises(Exception):
+        C.detect_pool(pool, study, grids, cache_dir=tmp_path)

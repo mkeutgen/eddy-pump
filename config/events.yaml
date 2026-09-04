@@ -2,10 +2,10 @@
 #
 # study:            the study id, the review criterion, the cache the saved candidate lists are
 #                   bound to, where outputs go and where they must never go
-# cache:            how the fleet cache is built: the four grid flavours and the channels each one
+# cache:            how the fleet cache is built: the four grid kinds and the channels each one
 #                   carries, the dates kept, what happens to a placeholder value, which column a
 #                   cycle falls back to, and the ceilings the cache check uses. The plausible
-#                   ranges, the floats left out and the backscatter smoother are already declared
+#                   ranges, the floats left out and the backscatter smoother are already written
 #                   below (raw_inputs, excluded_floats, tracers.carbon.prefilter) and are joined to
 #                   this block in code, so nothing is written down twice
 # spec_version:     the version prefix of every spec_id
@@ -18,18 +18,18 @@
 # raw_inputs:       the Argo variables the channels are derived from, their plausible ranges, and
 #                   what the cache build does with a value outside them
 # excluded_floats:  the nine floats left out of the cache, each with its reason
-# pools:            the six pools, parent first on each limb, each with its pinned spec_id — a hash
-#                   of the channels and parameters. The loader refuses a pool whose content no longer
-#                   hashes to its pin: re-pin deliberately, because every label and every saved
-#                   candidate list is keyed to it.
+# pools:            the six pools, parent first on each limb, each with its recorded spec_id — a
+#                   hash of the channels and parameters. The loader refuses a pool whose content no
+#                   longer hashes to the id written here. Change one only on purpose: every label
+#                   and every saved candidate list is keyed to it.
 #
 # A pool is written `<channel>/<direction>` here and in pool ids, and `<channel>_<direction>` in file
 # names and EVENT_TYPE; they are the same pool.
 #
-# Loaded by eddy_pump.manifest.load_manifest(). The reasoning behind the values — the rulings on
-# plausible ranges, the nitrate ceiling, the excluded floats, the channel order, the cache identity —
-# is in the archive's record (this file's full commentary lives in eddy-pump-archive). Comments here
-# say what a value is; they do not argue for it.
+# Read by eddy_pump.manifest.load_manifest(), which turns this file into the study object. Why the
+# values are what they are — the decisions on plausible ranges, the nitrate ceiling, the excluded
+# floats, the channel order, the cache identity — is in the archive (mkeutgen/eddy-pump-archive,
+# docs/DECISIONS.md). Comments here say what a value is; they do not argue for it.
 
 study:
   study_id: net_carbon_v1
@@ -41,7 +41,7 @@ study:
     - results/scan          # a retired read-only cache the active study must never write into
 
 cache:
-  labels:                 # grid flavour -> the channels that grid carries, in this order
+  grid_kinds:             # grid kind -> the channels that grid carries, in this order
     paper_phys: [AOU, ABS_SAL, SIGMA0]
     paper_bbp:  [AOU, ABS_SAL, BBP700_ADJUSTED, SIGMA0]
     paper_nit:  [AOU, ABS_SAL, NITRATE_ADJUSTED, SIGMA0]
@@ -88,8 +88,8 @@ tracers:
     cutoff: 1.00
     require_gradient_check: true
     sign_constraint:
-      obduction: positive   # old deep water is nutrient-RICH (Redfield remineralisation)
-      subduction: negative  # young surface water is nutrient-POOR
+      obduction: positive   # old deep water is nutrient-rich (Redfield remineralisation)
+      subduction: negative  # young surface water is nutrient-poor
     prefilter:
       valid_range: [0.0, 48.0]
       range_policy: clip
@@ -99,7 +99,7 @@ tracers:
     cutoff: 1.00
     require_gradient_check: false
     sign_constraint:
-      obduction: positive   # a particle EXCESS is the carbon signature on BOTH limbs
+      obduction: positive   # a particle excess is the carbon signature on both limbs
       subduction: positive
     prefilter:
       pre_median_filter: true
@@ -120,187 +120,73 @@ raw_inputs:
     range_policy: mask
 
 excluded_floats:
+  # One sentence of why, then where the full case is written down. The evidence behind every line
+  # here -- the depth-banded statistics, the co-located floats, the candidate counts -- is in the
+  # archive, mkeutgen/eddy-pump-archive, docs/DECISIONS.md, the entries of 2026-08-25.
   - wmo: 6903872
     ruled: 2026-08-25
     ruled_by: user
     reason: >-
-      Intermittently broken salinity, not dead salinity, and the distinction is the whole reason a
-      range will not do. PSAL_ADJUSTED runs 32.81 to 43.92 and its standard deviation is 2.30 to
-      2.40 g/kg in EVERY depth band from the surface to 2100 dbar -- against 0.12 to 0.14 on a
-      healthy float -- while the interquartile range in those same bands is only 0.03 to 0.24. So
-      the bulk of the column looks normal and a minority of levels is wrong AT EVERY DEPTH: the
-      170,328 levels a [1, 41] range removes are the part of that minority which happens to cross
-      a bound, and the part that does not cross it stays, unmarked and unmeasurable. The AOU is
-      why this cannot be shrugged off: it spans a wholly normal -87.8 to +70.1, because a garbage
-      salinity produces a PLAUSIBLE gsw saturation. Neither oxygen range, nor the AOU range, nor
-      the fill gate, nor gate E can see anything wrong with this float.
-    evidence: >-
-      946 of the 349,597 frozen candidates stand on it (438 physical subduction, 508 physical
-      obduction, none in the four tracer pools). Staged raw frame cache_paper/raw/6903872.parquet:
-      1,978,376 rows, 149 cycles, 1,965,720 finite salinity levels, 170,328 (8.7 %) outside
-      [1, 41] on 11 of the 149 cycles; median position 60.4 N, 33.7 W; 2021-06-20 to 2025-07-10.
-      Depth-banded spread reproduced against float 5904166 as the healthy control.
+      Salinity that breaks intermittently: the spread is 2.3 to 2.4 g/kg in every depth band, against
+      0.12 on a healthy float, so a plausible range removes the levels that cross it and certifies
+      the wrong ones that do not.
+    evidence: "eddy-pump-archive, docs/DECISIONS.md, 2026-08-25."
   - wmo: 6902963
     ruled: 2026-08-25
     ruled_by: user
     reason: >-
-      The same defect off Peru, and the float that forces the high bound to 41 rather than 42:
-      87,231 of its 545,661 finite salinity levels sit between 41.32 and 41.99, a band no ocean
-      reaches and one that sits just above the Red Sea maximum the bound was set to protect
-      (40.788). Below 50 dbar its per-band MAXIMUM is the identical value 41.316 at every depth to
-      2100 dbar -- a stuck reading, not a water mass -- and its standard deviation is 2.26 to 2.52
-      g/kg in every one of those bands while the interquartile range stays under 0.36. Excluded
-      rather than ranged for the same reason as 6903872: a [1, 41] range leaves 458,430 levels
-      that read a perfectly plausible 34.27 to 39.29, and there is no way to say how many of those
-      are real.
-    evidence: >-
-      40 of the 349,597 frozen candidates stand on it (6 physical subduction, 34 physical
-      obduction, none in the four tracer pools). Staged raw frame cache_paper/raw/6902963.parquet:
-      571,090 rows, 299 cycles, 545,661 finite salinity levels, 87,231 (16.0 %) outside [1, 41] on
-      56 of the 299 cycles; median position 8.0 S, 84.4 W; 2021-09-25 to 2026-01-26.
+      The same broken salinity off Peru, with 87,231 levels stuck in a band no ocean reaches, and a
+      range would leave 458,430 levels that read plausibly and cannot be trusted.
+    evidence: "eddy-pump-archive, docs/DECISIONS.md, 2026-08-25."
   - wmo: 2902882
     ruled: 2026-08-25
     ruled_by: user
     reason: >-
-      Its ENTIRE nitrate record is above the ocean. Every one of its 241,704 finite nitrate
-      samples reads 45.52 or higher, topping out at 92.08, on a float whose shallowest above-45
-      sample sits at 2.9 dbar. On matched potential-density surfaces it reads 74.11 (sigma0
-      25.5-25.7) rising monotonically with depth to 91.34 (sigma0 27.3-27.5), where six co-located
-      floats in the same NW Pacific subtropical gyre water -- 2902913, 5906518, 5906519, 7902116,
-      5906511, 5907153 -- read 5.57 to 43.52 and agree with each other to within 9.02. The offset
-      is 50 to 65 umol/kg. Because it rises monotonically with depth, the profile SHAPE is
-      textbook and no anomaly detector, gradient test or per-cycle scale can flag it: only the
-      absolute level is wrong, and it is wrong everywhere. A ceiling of 48 masks 236,232 of its
-      samples and clips 4,608 more onto 48.0, leaving 864 samples of a float that has no correct
-      reading anywhere in its record -- which is why it is dropped rather than ranged.
-    evidence: >-
-      23 of the 349,597 frozen candidates stand on it (1 physical subduction, 15 physical
-      obduction, 1 carbon subduction, 6 carbon obduction, and NONE in either nitrate pool -- so
-      all 23 are condemned for a reason unrelated to nitrate). Staged raw frame
-      cache_paper/raw/2902882.parquet: 5,010,696 rows, 214 cycles, 241,704 finite nitrate levels
-      on all 214, record 45.52 to 92.08; median position 23.4 N, 146.5 E; 2023-06-15 to
-      2025-06-29. NITRATE_ADJUSTED is byte-identical to raw NITRATE on 100 % of levels: no
-      delayed-mode nitrate correction was ever applied.
+      Its whole nitrate record sits above the ocean, 45.52 and higher where six neighbouring floats
+      read 5.57 to 43.52, and the profile shape is textbook, so no detector can see it.
+    evidence: "eddy-pump-archive, docs/DECISIONS.md, 2026-08-25."
   - wmo: 2902914
     ruled: 2026-08-25
     ruled_by: user
     reason: >-
-      The float that proves a ceiling cannot do this job. A bound of 48 masks 75,270 of its
-      samples and LEAVES 95,901 untouched -- and the untouched ones are wrong too. On matched
-      potential-density surfaces it reads 32.43 (sigma0 25.5-25.7) to 64.78 (sigma0 27.3-27.5)
-      where four co-located Philippine Sea / NW tropical Pacific floats -- 2902913, 5906519,
-      5906518, 7902116 -- read 5.57 to 42.67: an offset of 23.6 to 27.2 umol/kg against their
-      mean, 21.4 to 25.9 against the highest of them, on every one of five surfaces. A bound
-      therefore removes the part of the record that crosses it and CERTIFIES the rest, which is
-      the exact failure the salinity exclusions of the same day were ruled to avoid.
-    evidence: >-
-      79 of the 349,597 frozen candidates stand on it (19 physical subduction, 35 physical
-      obduction, 4 nitrate subduction, 1 nitrate obduction, 5 carbon subduction, 15 carbon
-      obduction). 74 of those 79 are condemned for a reason unrelated to nitrate. Staged raw frame
-      cache_paper/raw/2902914.parquet: 3,631,992 rows, 142 cycles, 173,706 finite nitrate levels,
-      record 19.76 to 65.88, 80,223 samples above 45; median position 14.5 N, 128.9 E; 2024-11-10
-      to 2026-04-11. NITRATE_ADJUSTED is byte-identical to raw NITRATE on 100 % of levels.
+      Nitrate about 25 umol/kg above four neighbouring floats on every density surface, a shift so
+      even that a ceiling of 48 leaves 95,901 wrong levels untouched.
+    evidence: "eddy-pump-archive, docs/DECISIONS.md, 2026-08-25."
   - wmo: 4902679
     ruled: 2026-08-25
     ruled_by: user
     reason: >-
-      One of four Gulf of Alaska / Line P floats that never received a delayed-mode nitrate
-      correction, in the one region of this fleet where the correct answer is known from six
-      corrected instruments. On potential-density surface sigma0 27.3-27.4 the corrected floats
-      5903405, 5903714, 5905988, 5906531, 5903274 and 5902128 agree at 43.62 to 44.42 -- a spread
-      of 0.80 -- and this float reads 48.66. Its offset against their mean is 4.34 to 5.66 on
-      every surface from sigma0 26.9 down. A ceiling of 48 clips 60,207 of its samples onto 48.0
-      and masks only 2,002, leaving 55,265 above-45 samples in place: the bound turns a 5 umol/kg
-      calibration offset into a fabricated plateau at exactly the bound, which is worse than
-      either the raw error or an honest absence.
-    evidence: >-
-      15 of the 349,597 frozen candidates stand on it (3 physical subduction, 6 physical
-      obduction, 1 nitrate obduction, 2 carbon subduction, 3 carbon obduction); 14 of the 15 are
-      condemned for a reason unrelated to nitrate. Staged raw frame
-      cache_paper/raw/4902679.parquet: 3,260,033 rows, 211 cycles, 253,512 finite nitrate levels,
-      record 2.06 to 50.50, 117,474 samples above 45; median position 49.8 N, 133.3 W; 2024-05-05
-      to 2026-08-05. NITRATE_ADJUSTED is byte-identical to raw NITRATE on 100 % of levels.
+      One of four Line P floats that never got a delayed-mode nitrate correction, reading 4.3 to 5.7
+      umol/kg above six corrected neighbours, where a ceiling of 48 would build a false plateau.
+    evidence: "eddy-pump-archive, docs/DECISIONS.md, 2026-08-25."
   - wmo: 4902680
     ruled: 2026-08-25
     ruled_by: user
     reason: >-
-      The second of the four uncorrected Line P floats, and the same defect at a smaller
-      amplitude. On sigma0 27.3-27.4 it reads 47.63 against the six corrected floats' 43.62 to
-      44.42, and its offset against their mean holds at 3.51 to 4.52 across every surface from
-      sigma0 26.6 to 27.5 -- a fixed shift, not a spike, so no shape test can see it. A ceiling of
-      48 masks NOTHING on this float and clips 13,615 samples, leaving 40,236 above-45 samples
-      untouched: the bound is almost entirely blind to it.
-    evidence: >-
-      6 of the 349,597 frozen candidates stand on it, ALL SIX in physical obduction and NONE in
-      either nitrate pool -- so every candidate this exclusion costs is condemned for a reason
-      unrelated to nitrate. Staged raw frame cache_paper/raw/4902680.parquet: 1,260,448 rows, 78
-      cycles, 101,927 finite nitrate levels, record 5.07 to 49.36, 53,851 samples above 45; median
-      position 49.9 N, 147.3 W; 2024-09-09 to 2026-07-30. NITRATE_ADJUSTED is byte-identical to
-      raw NITRATE on 100 % of levels.
+      The second uncorrected Line P float, 3.5 to 4.5 umol/kg above the corrected neighbours on every
+      density surface, and a ceiling of 48 masks none of it.
+    evidence: "eddy-pump-archive, docs/DECISIONS.md, 2026-08-25."
   - wmo: 4902681
     ruled: 2026-08-25
     ruled_by: user
     reason: >-
-      The float that NO ceiling can reach, and therefore the clearest case for excluding rather
-      than ranging. Its whole nitrate record is 9.00 to 46.96, so a bound of 48 -- or 47.3, or
-      anything in the empty half-unit the ceiling was chosen from -- touches not one of its
-      61,243 samples. It is still wrong: on sigma0 27.3-27.4 it reads 46.17 where the six
-      corrected Line P floats agree at 43.62 to 44.42, and its offset against their mean is 1.97
-      to 2.41 on every surface from sigma0 26.9 to 27.5, about 2.1 umol/kg. That is the same
-      uncorrected-sensor defect as its three siblings, small enough to hide entirely inside any
-      plausible bound. A range cannot express "this float reads two units high everywhere"; only a
-      declared exclusion can.
-    evidence: >-
-      ZERO of the 349,597 frozen candidates stand on it, so this exclusion costs the six pools
-      nothing at all and is taken purely to keep a known-offset instrument out of a rebuilt cache.
-      Staged raw frame cache_paper/raw/4902681.parquet: 1,910,979 rows, 203 cycles, 61,243 finite
-      nitrate levels on 100 of them, record 9.00 to 46.96, 24,780 samples above 45, and 0 clipped
-      or masked at a bound of 48; median position 49.8 N, 144.6 W; 2025-05-08 to 2026-05-31.
-      NITRATE_ADJUSTED is byte-identical to raw NITRATE on 100 % of levels.
+      The third uncorrected Line P float, about 2.1 umol/kg high everywhere, which no ceiling can
+      reach because its whole record stops at 46.96.
+    evidence: "eddy-pump-archive, docs/DECISIONS.md, 2026-08-25."
   - wmo: 4902683
     ruled: 2026-08-25
     ruled_by: user
     reason: >-
-      The worst of the four uncorrected Line P floats. On sigma0 27.3-27.4 it reads 51.17 against
-      the six corrected floats' 43.62 to 44.42, and its offset against their mean is 7.09 to 8.51
-      on every surface -- so large that its shallow water (41.44 at sigma0 26.6-26.7) already
-      exceeds the deep maximum of the corrected floats. A ceiling of 48 splits it almost in half,
-      masking 15,484 samples and clipping 16,310 onto the bound, and still leaves 8,106 above-45
-      samples standing; nothing about the remainder is more trustworthy than the part removed.
-    evidence: >-
-      25 of the 349,597 frozen candidates stand on it (10 physical subduction, 7 physical
-      obduction, 3 nitrate subduction, 2 nitrate obduction, 3 carbon obduction); 20 of the 25 are
-      condemned for a reason unrelated to nitrate. Staged raw frame
-      cache_paper/raw/4902683.parquet: 1,575,798 rows, 187 cycles, 84,322 finite nitrate levels on
-      147 of them, record 6.33 to 51.92, 39,900 samples above 45; median position 51.5 N, 132.5 W;
-      2025-05-04 to 2026-04-26. NITRATE_ADJUSTED is byte-identical to raw NITRATE on 100 % of
-      levels.
+      The worst of the four uncorrected Line P floats, 7.1 to 8.5 umol/kg high, so its shallow water
+      already reads above the deep maximum of the corrected neighbours.
+    evidence: "eddy-pump-archive, docs/DECISIONS.md, 2026-08-25."
   - wmo: 1902692
     ruled: 2026-08-25
     ruled_by: user
     reason: >-
-      An offset sensor in the one water mass this study cannot afford to get wrong. It sits in the
-      oxygen-poor eastern tropical North Pacific, whose genuine deep nitrate maximum of 44.75 to
-      45.83 on sigma0 27.3-27.4 is exactly what the ceiling of 48 was set high enough to protect,
-      and it reads 48.25 on that surface: 2.96 above the mean of the five sound co-located floats
-      5906486, 5906483, 7901109, 7902104 and 5906484, which agree with each other to 1.07 there.
-      The offset holds at 2.57 to 3.40 on every surface from sigma0 27.1 to 27.6. The other end of
-      its record condemns it independently: it reports -23.25 umol/kg somewhere, a value no ocean
-      and no floor-noise explanation reaches, and one the low half of the clip band would silently
-      MASK rather than flag. A ceiling of 48 clips 7,098 of its samples onto the bound and masks
-      none, leaving 7,436 above-45 samples standing, every one of them about 3 too high -- so the
-      bound manufactures a plateau and certifies the remainder. Left in, it would be the float
-      that makes the region's real deep maximum look like an instrument artifact.
-    evidence: >-
-      26 of the 349,597 frozen candidates stand on it (6 physical subduction, 16 physical
-      obduction, 1 nitrate subduction, 1 nitrate obduction, 2 carbon obduction); 24 of the 26 are
-      condemned for a reason unrelated to nitrate. Staged raw frame
-      cache_paper/raw/1902692.parquet: 3,256,214 rows, 95 cycles, 72,566 finite nitrate levels on
-      90 of them, record -23.25 to 48.99, 14,534 samples above 45; a ceiling of 48 clips 7,098 and
-      masks 0, leaving 7,436 above-45 samples untouched; median position 12.6 N, 92.3 W;
-      2024-11-03 to 2026-08-17. Unlike the other six, this float DID receive a delayed-mode
-      nitrate correction (NITRATE_ADJUSTED differs from raw NITRATE on every level) -- the
-      correction did not remove the offset.
+      An offset sensor in the eastern tropical North Pacific, 3 umol/kg high on the very surface
+      whose real nitrate maximum the ceiling of 48 was set to protect, and it also reports -23.25.
+    evidence: "eddy-pump-archive, docs/DECISIONS.md, 2026-08-25."
 
 pools:
   - channel: physical

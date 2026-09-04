@@ -1,10 +1,10 @@
 """The design of a labelling batch: strata, allocation, the draw, the controls, the estimator.
 
-Draws nothing itself; `production/build_batches.py` calls it. `score_deciles` cuts a pool into
+Draws nothing itself; `pipeline/draw_batch.py` calls it. `score_deciles` cuts a pool into
 strata; `isotonic_acceptance` plans the acceptance per stratum; `neyman_allocation` and `solve_n`
 size the draw for a target half-width; `draw_one_per_float` draws one panel per float per stratum
 at equal inclusion probability n/N; `draw_controls` adds blind controls; `hajek_rate` and
-`stratified_rate` are the estimators; `calibration_report` is the gate before a session (Cohen's κ
+`stratified_rate` are the estimators; `calibration_report` is the check before a session (Cohen's κ
 against the frozen 42-panel reference and the base rate on target: PASS or DRIFTED).
 """
 
@@ -25,7 +25,7 @@ CONTROL_STRATA = (POS_CTRL, NEG_CTRL)
 N_DECILES = 10
 FLOOR_SHARE = 0.05          # at least this share of the draw in every open decile (the plan's rule)
 Z = 1.96
-KAPPA_PASS = 0.6            # production/LABELING_PROTOCOL.md: κ > 0.6 and base rate on target
+KAPPA_PASS = 0.6            # docs/LABELING_PROTOCOL.md: κ > 0.6 and base rate on target
 WORKSHEET_COLS = ["LABEL", "SAMPLE_ID", "WMO", "CYCLE_NUMBER", "PRES_ADJUSTED",
                   "LATITUDE", "LONGITUDE", "TIME", "EVENT_TYPE"]
 BLIND_FORBIDDEN = {"score", "stratum", "src", "inclusion_probability", "candidate_id", "REF_LABEL",
@@ -42,7 +42,7 @@ def key3(df: pd.DataFrame) -> pd.Series:
 
 
 def score_deciles(df: pd.DataFrame, n: int = N_DECILES) -> pd.Series:
-    """Decile of `score` by RANK — equal-sized strata, ties broken by the key so the cut is a
+    """Decile of `score` by rank — equal-sized strata, ties broken by the key so the cut is a
     deterministic function of the frozen pool and never of row order."""
     order = df.sort_values(["score", "WMO", "CYCLE_NUMBER", "PRES_ADJUSTED"], kind="mergesort").index
     rank = pd.Series(np.arange(len(order)), index=order)
@@ -140,7 +140,7 @@ def clusters_of(S: pd.DataFrame, n: int) -> pd.Series:
 
     Systematic PPS needs every cluster's selection probability n·size/N ≤ 1. A float holding more
     than N/n of a stratum would exceed it, so it is chunked; the draw then takes at most one
-    panel per CHUNK, which is one per float everywhere the frame allows and two or more only on
+    panel per chunk, which is one per float everywhere the frame allows and two or more only on
     the few floats that dominate a stratum. The report counts them."""
     N = len(S)
     m = max(1, N // n) if n > 0 else N
@@ -153,7 +153,7 @@ def clusters_of(S: pd.DataFrame, n: int) -> pd.Series:
 
 def draw_one_per_float(S: pd.DataFrame, n: int, rng: np.random.Generator) -> pd.DataFrame:
     """`n` candidates of one stratum, at most one per float (per chunk of a dominant float),
-    every candidate with inclusion probability EXACTLY n/N.
+    every candidate with inclusion probability exactly n/N.
 
     Systematic PPS on clusters with size = the cluster's candidates in the stratum (a random
     cluster order, one uniform start, hits at u, u+1, …, u+n−1 along the cumulative sizes scaled
@@ -254,9 +254,49 @@ def sha256_of(path: Path) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+#: `src/eddy_pump/batches.py` -> parents[2] is the repo root.
+REPO_ROOT = Path(__file__).resolve().parents[2]
+#: Sheets, keys and panels live under this directory of the repo, which is not in Git.
+SHEET_ROOT = "results"
+
+
+def repo_relative(path: Path | str) -> str:
+    """A path as a draw record should carry it: relative to the repo root when it is inside it.
+
+    An absolute path in a record only works in the checkout that wrote it. Records already written
+    carry one; `resolve_recorded_path` reads those, this writes the portable form for new ones.
+    """
+    p = Path(path)
+    try:
+        return str(p.resolve().relative_to(REPO_ROOT))
+    except ValueError:
+        return str(p)
+
+
+def resolve_recorded_path(recorded: str | Path) -> Path:
+    """A path out of a draw record, resolved against this checkout.
+
+    The first records were written in another checkout and carry its absolute paths. The part from
+    `results/` onward is the same everywhere, so it is joined to this repo's root; the recorded path
+    is used only when that gives nothing that exists.
+    """
+    p = Path(recorded)
+    parts = p.parts
+    if SHEET_ROOT in parts:
+        i = len(parts) - 1 - parts[::-1].index(SHEET_ROOT)   # the last `results/`, the one nearest the file
+        here = REPO_ROOT.joinpath(*parts[i:])
+        if here.exists():
+            return here
+    if not p.is_absolute() and (REPO_ROOT / p).exists():
+        return REPO_ROOT / p
+    return p
+
+
 def write_sheets(out_dir: Path, ws: pd.DataFrame, key: pd.DataFrame, batch_id: str) -> dict:
     """The worksheet `<batch_id>.csv` and `ANSWER_KEY_do_not_open.csv` beside it (the name
-    argopod's session reader looks for). Refuses to overwrite a worksheet that carries verdicts."""
+    argopod's session reader looks for). Refuses to overwrite a worksheet that carries verdicts.
+
+    The paths recorded are relative to the repo root, so the record reads in any checkout."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     wp, kp = out_dir / f"{batch_id}.csv", out_dir / "ANSWER_KEY_do_not_open.csv"
@@ -267,8 +307,8 @@ def write_sheets(out_dir: Path, ws: pd.DataFrame, key: pd.DataFrame, batch_id: s
                                   f"worksheet is never overwritten; move it or pick a new batch id")
     ws.to_csv(wp, index=False)
     key.to_csv(kp, index=False)
-    return {"worksheet": {"path": str(wp), "sha256": sha256_of(wp), "rows": int(len(ws))},
-            "answer_key": {"path": str(kp), "sha256": sha256_of(kp), "rows": int(len(key))}}
+    return {"worksheet": {"path": repo_relative(wp), "sha256": sha256_of(wp), "rows": int(len(ws))},
+            "answer_key": {"path": repo_relative(kp), "sha256": sha256_of(kp), "rows": int(len(key))}}
 
 
 # --------------------------------------------------------------------------------------------- #
@@ -302,7 +342,7 @@ def hajek_rate(y: np.ndarray, pi: np.ndarray, groups: np.ndarray, n_boot: int = 
 
 def stratified_rate(y: np.ndarray, pi: np.ndarray, stratum: np.ndarray, groups: np.ndarray, N_h: dict,
                     n_boot: int = 2000, seed: int = 0) -> dict:
-    """The design-based estimate for THIS design, and its variance — the headline a rate reports.
+    """The design-based estimate for this design, and its variance — the headline a rate reports.
 
     Within a stratum every panel is one PSU drawn with the same probability, so the estimator is
     the stratified mean  p = Σ_h W_h p̂_h  with W_h = N_h / N  (the Hájek with 1/π weights equals it
@@ -312,7 +352,7 @@ def stratified_rate(y: np.ndarray, pi: np.ndarray, stratum: np.ndarray, groups: 
     (or all) accepts is floored at the Jeffreys mean (a+½)/(n+1) for the variance term only — a
     zero count at a planned 1.6 % acceptance is the expected outcome, not zero variance.
 
-    Two resampling checks come with it: a stratified bootstrap (panels resampled WITHIN stratum,
+    Two resampling checks come with it: a stratified bootstrap (panels resampled within a stratum,
     the design's own resampling) and the naive float bootstrap (floats resampled with replacement
     ignoring strata). The naive one lets the fixed n_h float and so overstates the variance of a
     stratified draw — measured by Monte Carlo on the real frame: the closed form is
@@ -369,7 +409,7 @@ def stratified_rate(y: np.ndarray, pi: np.ndarray, stratum: np.ndarray, groups: 
 
 
 # --------------------------------------------------------------------------------------------- #
-# the calibration gate
+# the calibration check
 # --------------------------------------------------------------------------------------------- #
 def cohen_kappa(a: np.ndarray, b: np.ndarray) -> float:
     a, b = np.asarray(a, int), np.asarray(b, int)
@@ -382,8 +422,8 @@ def cohen_kappa(a: np.ndarray, b: np.ndarray) -> float:
 
 def calibration_report(sheet: pd.DataFrame, reference: pd.DataFrame, kappa_pass: float = KAPPA_PASS,
                        base_rate_alpha: float = 0.05) -> dict:
-    """The protocol's gate: re-label the anchor blind, then κ > 0.6 against the frozen
-    reference and the base rate on target (two-sided binomial test at `base_rate_alpha`).
+    """The protocol's check: re-label the 42 calibration panels blind, then κ > 0.6 against the
+    frozen reference and the base rate on target (two-sided binomial test at `base_rate_alpha`).
 
     `sheet` carries LABEL (0/1/2/blank), `reference` carries REF_LABEL; both carry the key.
     Undecided rows (blank or 2) are excluded from κ and counted."""
@@ -404,7 +444,7 @@ def calibration_report(sheet: pd.DataFrame, reference: pd.DataFrame, kappa_pass:
     on_target = bool(p_base >= base_rate_alpha) if len(decided) else False
     passed = bool(len(decided) == len(r) and k > kappa_pass and on_target)
     disagree = decided[decided.LABEL != decided.REF_LABEL]
-    # what the gate can and cannot see at this n: a bootstrap interval on κ and the range of
+    # what the check can and cannot see at this n: a bootstrap interval on κ and the range of
     # accepted counts the base-rate test would still pass — PASS means "not detectably drifted".
     rng = np.random.default_rng(0)
     kb = []
@@ -427,7 +467,7 @@ def calibration_report(sheet: pd.DataFrame, reference: pd.DataFrame, kappa_pass:
             "base_rate_pass_region_accepted": [min(pass_region), max(pass_region)] if pass_region else None,
             "agreement_by_tier": by_tier,
             "verdict": "PASS" if passed else "DRIFTED",
-            "verdict_means": "PASS = not detectably drifted at this n; it is not evidence of anchoring",
+            "verdict_means": "PASS = not detectably drifted at this n; it is not evidence that the criterion held",
             "disagreements": disagree[KEYS + ["LABEL", "REF_LABEL"]].to_dict("records")}
 
 

@@ -1,13 +1,16 @@
-# The study's labelling batches — built 2026-08-27
+# The study's labelling batches — built 2026-09-04
 
-Built by `pipeline/draw_batch.py`; the design is `eddy_pump.batches`. Worksheets, keys and panels are under `results/net_carbon_v1/labeling/<batch_id>/` (not in Git); the draw records beside this page are the ledger's input when a sheet comes back labelled.
+Built by `pipeline/draw_batch.py`; the design is `eddy_pump.batches`. Worksheets, keys and panels are under `results/net_carbon_v1/labeling/<batch_id>/` (not in Git); the draw records beside this page are the label table's input when a sheet comes back labelled.
 
-| batch | role | rows | of which science / controls | hours | expected precision | gate before labelling |
+| batch | role | rows | of which science / controls | hours | expected precision | check before labelling |
 |---|---|---:|---|---:|---|---|
 | `calib_obduction_b6` | calibration | 42 | 0 / calibration 42 | 0.3 | — | — |
+| `calib_obduction_v1` | calibration | 42 | 0 / calibration 42 | 0.3 | — | — |
 | `calib_subduction_v1` | calibration | 42 | 0 / calibration 42 | 0.3 | — | — |
-| `rate_obduction_01` | analysis | 619 | 579 / positive 20 / negative 20 | 4.9 | ±15.0% relative on the pool rate (target ±15%) | calib_obduction_b6 PASS the same day |
-| `rate_subduction_01` | analysis | 832 | 792 / positive 20 / negative 20 | 6.6 | ±15.0% relative on the pool rate (target ±15%) | calib_subduction_v1 adjudicated and frozen, then re-labelled blind: PASS |
+| `calib_subduction_v1_pass2` | calibration | 42 | 0 / calibration 42 | 0.3 | — | — |
+| `rate_obduction_01` | analysis | 619 | 579 / positive 20 / negative 20 | 4.9 | ±15.0% relative on the pool rate (target ±15%) | the pool's 42 calibration panels re-labelled blind: PASS |
+| `rate_obduction_02` | analysis | 128 | 90 / positive 18 / negative 20 | 1.0 | ±39.7% relative on this region's own rate | the pool's 42 calibration panels re-labelled blind: PASS |
+| `rate_subduction_01` | analysis | 832 | 792 / positive 20 / negative 20 | 6.6 | ±15.0% relative on the pool rate (target ±15%) | the pool's 42 calibration panels re-labelled blind: PASS |
 
 ## How to label one
 
@@ -20,7 +23,7 @@ The worksheet carries the key, the position and the coordinates — nothing else
 
 ## `rate_obduction_01` — the allocation
 
-Planning base rate 0.1366; target variance 0.000109; the open draw contributes 9.87e-05. Neyman against proportional at the same n: ×0.80. (Frozen draw record; the held region it also drew is no longer credited by the rate — the open strata below are the sample.)
+Planning base rate 0.1366 (the upward direct sample's own rate, 234/1713 on the whole-Letter-pool frame); target variance 0.000109, the draw 9.87e-05. Neyman against proportional at the same n: ×0.80.
 
 | stratum | N | floats | score range | planned p | n | π = n/N |
 |---|---:|---:|---|---:|---:|---:|
@@ -35,10 +38,21 @@ Planning base rate 0.1366; target variance 0.000109; the open draw contributes 9
 | open|d8 | 17,488 | 1,406 | 0.0518–0.1612 | 0.261 | 99 | 0.00566 |
 | open|d9 | 16,916 | 1,201 | 0.1612–0.9983 | 0.633 | 106 | 0.00627 |
 
+## `rate_obduction_02` — the allocation
+
+Planning base rate 0.2014 (the obduction steering labels' own base rate, 116/576 (study-derived)); target variance None, the draw 0.00178. Neyman against proportional at the same n: ×0.98.
+
+| stratum | N | floats | score range | planned p | n | π = n/N |
+|---|---:|---:|---|---:|---:|---:|
+| former_held|<=200 | 4,931 | 446 | 0.0001–0.9700 | 0.139 | 26 | 0.00527 |
+| former_held|200-260 | 4,777 | 463 | 0.0001–0.9957 | 0.211 | 30 | 0.00628 |
+| former_held|260-400 | 2,158 | 321 | 0.0001–0.9983 | 0.322 | 16 | 0.00741 |
+| former_held|400-600 | 1,493 | 271 | 0.0001–0.9863 | 0.282 | 10 | 0.00670 |
+| former_held|600-1000 | 1,338 | 207 | 0.0001–0.9858 | 0.211 | 8 | 0.00598 |
 
 ## `rate_subduction_01` — the allocation
 
-Planning base rate 0.1366; target variance 0.000109; the open draw contributes 9.92e-05. Neyman against proportional at the same n: ×0.80. (The downward pool is sampled whole; no held region.)
+Planning base rate 0.1366 (the upward direct sample's own rate, 234/1713 on the whole-Letter-pool frame (the downward pool has no direct sample of its own)); target variance 0.000109, the draw 9.92e-05. Neyman against proportional at the same n: ×0.80.
 
 | stratum | N | floats | score range | planned p | n | π = n/N |
 |---|---:|---:|---|---:|---:|---:|

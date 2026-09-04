@@ -54,14 +54,14 @@ class Tracer(StrEnum):
 
 
 #: The channel token of a pool with no tracer. One string, used in `pool_id`, in `EVENT_TYPE`
-#: and in the manifest, so a reader greps for the same word everywhere.
+#: and in config/events.yaml, so a reader greps for the same word everywhere.
 PHYSICAL = "physical"
 
 #: Every channel token a `pool_id` may carry, in the order a reader expects: parent first.
 CHANNELS: tuple[str, ...] = (PHYSICAL, Tracer.NITRATE.value, Tracer.CARBON.value)
 
-#: The six scientific proposal classes — the whole vocabulary of `EVENT_TYPE`. A token outside
-#: this set is refused wherever a pool_id is parsed. The reasoning: docs/DECISIONS.md
+#: The six event definitions — the whole vocabulary of `EVENT_TYPE`. A token outside this set is
+#: refused wherever a pool_id is parsed. Why: docs/DECISIONS.md
 CANONICAL_EVENT_TYPES: frozenset[str] = frozenset(
     f"{channel}_{direction.value}" for channel in CHANNELS for direction in Direction
 )

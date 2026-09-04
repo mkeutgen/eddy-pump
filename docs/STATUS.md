@@ -1,13 +1,56 @@
-# STATUS — what was done, on which day (2026-09-04)
+# STATUS — what was done, on which day
 
-The plan is `docs/PLAN.md`; the rulings in force are `docs/DECISIONS.md`. This file is the dated
-log: one entry per working day, newest first, saying what was done and what was verified. Every
-number here was read from its producer on the date shown.
+The dated log: one entry per working day, newest first. Every number here was read from the file
+that produces it, on the date shown. The plan is `docs/PLAN.md`; the decisions in force are
+`docs/DECISIONS.md`; the words are defined in `docs/IMPLEMENTATION_NOTES.md`.
 
-## The log
+## 2026-09-04, later
 
-| date | what was done | what moved | where |
-|---|---|---|---|
-| **2026-09-04** | **The fleet-cache builder moved into argopod, and the study now says how its cache is built.** Building a fleet of residual grids from a float list and a recipe is generic, so it lives in the library (`argopod.cache`, v0.5.1, pinned here). `config/events.yaml` grew a `cache:` block — the four grid flavours and their channels, the dates kept (2009-01-08 to 2026-03-15), the placeholder rule (`mask`), the delayed-mode fallback (`cycle`), the check ceilings — and `Study.cache_policy()` joins it to the plausible ranges, the nine floats left out and the backscatter smoother that were already in the file, so nothing is written down twice. The grid knobs stay argopod's defaults, which is what the frozen cache was built under, and a test names all fifteen of them. The float list is `config/fleet.csv`: 2,574 floats, each promised a flavour (1,181 paper_phys, 953 paper_all, 382 paper_bbp, 58 paper_nit), row for row the bound cache's own record. **The check: 2901074, 1901339, 1901378 and 6903247 — one per flavour — rebuild to 8 grid files whose sha256 all match the bound cache exactly** (`make check-cache`, about a minute). `make build-cache` refuses to write into the bound cache's own directory. Tests: 102 pass (84 before, 18 new), and the same in strict mode. | `config/events.yaml`, `config/fleet.csv`, `study.py`, `manifest.py`, `pipeline/build_cache.py`, `study.mk`, `Makefile`, `pyproject.toml`, `tests/test_cache_policy.py` | the plan's cache-builder step; `docs/DECISIONS.md`, "The pools and the cache" |
-| **2026-09-03**, later | **One label layer, one design — the old-world machinery removed.** `labels.py` reduced to the study's one table (the six legacy functions and the two-layer reader gone); `rates.py` dropped the held-region combination and the reuse-audit coverage read; `criteria.yaml` trimmed from six criteria to the one ruled `phys_net_carbon_v1` (two calibration anchors); the classifier (`scores.py`) re-homed off the old labels onto the study's own obduction labels; `draw_batch.py`/`ingest_batch.py` stripped of the held-region and b6-control machinery; every "old / legacy / letter / reuse-audit / paper-line" word left the code, the config and the tests. **The downward rate reproduces to the bit: 0.18738977257005085 (18.7 % of 133,307, ±14 %).** The upward rate becomes the open region alone: 0.12867083136731428 (12.9 % of 171,578), ±17 % — the former ≥ 1.96 σ region (14,697 levels) is dropped, to be re-sampled under the study's criterion (a later step). The upward classifier is now trained on the study's 576 obduction labels (out-of-fold AUC 0.75, honest; the downward AUC 0.86 is unchanged); the score never enters a rate. Tests: 84 pass. | `labels.py`, `rates.py`, `scores.py`, `draw_batch.py`, `ingest_batch.py`, `config/criteria.yaml`, `tests/*`, `docs/*`, `SCORES_SHA256` (upward re-homed) | the archive record §30; the one-label-layer plan step |
-| **2026-09-03** | **The repository seeded.** Cut fresh from `mkeutgen/eddy-pump-archive` (tag `archive-2026-09-03`, commit `cbd6fd6`), keeping only the study's essentials: the six saved candidate lists, the study's own labels, the definitions, the pipeline and the code. `production/` became `pipeline/`; the six scripts got plain names (`detect.py`, `features.py`, `scores.py`, `draw_batch.py`, `ingest_batch.py`, `rates.py`). Left behind (deposit / archive): the old labels (`verdicts.csv`, the two-layer ledger, the four curated files), the reuse audit and its outputs, the old paper's three candidate tables, `data/legacy/`, the cache builder, `legacy_labels.py`, the old record. 73 files, 28 MB. **Gate passed**: `load_manifest()` loads the six pools; each pool's spec id, row count and key hash (the sidecar `content_sha256`) match the archive; all 14 candidate files are byte-identical to the archive. (At this point the labelling loop and the rate report still carried the pre-study label layer; it was removed the same day — see the row above.) | the whole tree; first commit | the seed (`docs/DECISIONS.md`, "How this repository was born") |
+**Three audits, every finding fixed, in both repositories.**
+
+- The batch draw takes a batch name and refuses one that already has a record. The blind copy is
+  reproducible. The rate report and the draw check the saved list's hash. The feature step records
+  the fingerprint it measured. `EDDY_PUMP_CACHE` overrides the one-machine cache path. Re-detection:
+  all six pools exact. The scores: byte-identical.
+- The two upward batches are drawn and rendered: `calib_obduction_v1` (42 panels) and
+  `rate_obduction_02` (128 panels: 90 science, 38 controls, 83 floats, ±40 % on the held region's
+  own rate). The held region comes from the earlier study's detection table
+  (`data/external/letter_pool_features.parquet`, hash checked): this study's own residuals give
+  14,688 of its 14,697 levels, so the list is kept as data.
+- argopod 0.5.2: one grid builder, a checker that fails on an empty cache, a run that survives a
+  dead worker, provenance with library versions, `label` renamed `grid_kind`. Parity holds. Tests:
+  study 140 (from 102), argopod 529 (from 516). The words: rejected terms out of the prose, STATUS
+  ten lines per day, a 15-word glossary.
+
+## 2026-09-04
+
+**The fleet-cache builder moved into argopod, and the study now says how its cache is built.**
+
+- The builder is generic, so it lives in the library (`argopod.cache`, v0.5.1). The study keeps the
+  recipe (`config/events.yaml`) and the float list (`config/fleet.csv`, 2,574 floats).
+- The check: four floats, one per grid kind — 2901074, 1901339, 1901378, 6903247 — rebuild to 8
+  grid files. Every sha256 matches the bound cache exactly. `make check-cache`, about a minute.
+- Tests: 102 pass, 84 before, and the same in strict mode. Changed: the cache recipe and float
+  list, `study.py`, `manifest.py`, `pipeline/build_cache.py`, the make rules, one new test file.
+
+## 2026-09-03, later
+
+**One label layer, one design: the old machinery left the code.**
+
+- The downward rate reproduces to the bit: 0.18738977257005085 — 18.7 % of 133,307 candidate
+  levels, ±14 % relative.
+- The upward rate becomes the open region alone: 0.12867083136731428 — 12.9 % of 171,578, ±17 %.
+  The held region, 14,697 levels, waits for a draw of its own.
+- The upward classifier now trains on the study's own 576 obduction labels (out-of-fold AUC 0.75;
+  the downward 0.86 is unchanged). The score never enters a rate. Tests: 84 pass.
+
+## 2026-09-03
+
+**The repository seeded from the archive.**
+
+- Cut from `mkeutgen/eddy-pump-archive`, tag `archive-2026-09-03`, commit `cbd6fd6`, keeping only
+  the study's essentials: 73 files, 28 MB. `production/` became `pipeline/`.
+- The check passed: the six pools load, and each pool's spec id, row count and key hash match the
+  archive. All 14 candidate files are byte-identical to it.
+- The labelling loop and the rate report still carried the pre-study label layer at this point. It
+  was removed the same day, in the entry above.

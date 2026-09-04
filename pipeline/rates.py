@@ -2,7 +2,8 @@
 """The rate per physical pool from the label table, with its denominator and error bar.
 
 reads  data/labels/{study_reviews.parquet, study_batches.yaml} through eddy_pump.labels,
-       data/labels/draws/*.yaml, data/candidates/net_carbon_v1/<pool>.json (the pool size)
+       data/labels/draws/*.yaml, data/candidates/net_carbon_v1/<pool>.parquet (the pool size, read
+       through the check that the saved list still hashes to its sidecar)
 writes data/labels/audit/{rate_status.csv, RATE_STATUS.md}
 The rate is the weighted mean of the drawn sample's target verdicts with 1/π weights, over the
 candidate levels the sample covers. Where a pool is only partly sampled, the uncovered remainder is
@@ -12,7 +13,6 @@ reported, never used as a filter.
 
 from __future__ import annotations
 
-import json
 import pathlib
 import sys
 
@@ -23,13 +23,13 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
 
 from eddy_pump import batches as B  # noqa: E402
+from eddy_pump import candidates as C  # noqa: E402
 from eddy_pump import labels as L  # noqa: E402
 from eddy_pump.criteria import active_criterion  # noqa: E402
 from eddy_pump.manifest import load_manifest  # noqa: E402
 
 OUT = REPO / "data/labels/audit"
 DRAWS = REPO / "data/labels/draws"
-SAVED = REPO / "data/candidates/net_carbon_v1"   # the saved candidate lists; the sidecar carries the row count
 TARGET_REL = 0.15
 SECONDS_PER_PANEL = 28.7
 
@@ -48,7 +48,6 @@ def main() -> None:
             rows.append({"pool_id": pool.pool_id, "status": f"no analysis batch yet: {e}"})
             md.append(f"## `{pool.pool_id}` — no analysis batch labelled yet\n")
             continue
-        A_all = A.copy()                       # every drawn target row, uncertain included: the stratum's drawn count
         A = A[A.decision.isin([0, 1])]
         recs = {b: yaml.safe_load((DRAWS / f"{b}.yaml").read_text()) for b in A.batch_id.unique()}
         labelled = {b: yaml.safe_load((DRAWS / f"{b}.labelled.yaml").read_text()) for b in A.batch_id.unique()}
@@ -61,7 +60,9 @@ def main() -> None:
         # bootstrap is kept beside it as the labelled conservative sensitivity
         res = B.stratified_rate(A.decision.to_numpy(float), A.inclusion_probability.to_numpy(float), A.design_stratum.to_numpy(),
                                 A.key_wmo.to_numpy(), N_h, n_boot=3000, seed=1)
-        N_pool = json.loads((SAVED / f"{pool.event_type}.json").read_text())["rows"]
+        # the denominator comes from the saved list itself, verified: the key hash, the spec and the
+        # cache block are checked before the number a rate divides by is taken from it
+        N_pool = len(C.read_saved(study, pool, verify=True, columns=C.KEYS)[0])
         # The rate is over the region the sample actually covers (N_open). N_open == N_pool when the
         # whole pool is sampled (the downward limb); when only part is (the upward limb, whose former
         # held region awaits a fresh draw), the uncovered remainder is reported, never extrapolated.
@@ -88,11 +89,10 @@ def main() -> None:
                              f"the rate would read {halves.get('first', float('nan')):.3f} like the first half, {halves.get('second', float('nan')):.3f} like the second)")
             pc = s["controls"]["pos_ctrl"]
             if pc.get("blind_history"):
-                bh, stg = pc["blind_history"], pc["standing"]
-                verdict = "read strict" if pc.get("fisher_p_vs_blind_history_standing", 1) < 0.05 else "within the instrument's own noise"
-                flags.append(f"{b}: positive controls {pc['accepted']}/{pc['n']} — {stg['accepted']}/{stg['n']} on standing verdicts "
-                             f"({pc['overturned_in_ledger']} earlier accepts were later overturned) — against the blind re-judgement history "
-                             f"{bh['k']}/{bh['n']} ({bh['k'] / bh['n']:.0%}): Fisher p = {pc.get('fisher_p_vs_blind_history_standing', float('nan')):.2f} — {verdict}")
+                bh = pc["blind_history"]
+                verdict = "read strict" if pc.get("fisher_p_vs_blind_history", 1) < 0.05 else "within the instrument's own noise"
+                flags.append(f"{b}: positive controls {pc['accepted']}/{pc['n']} against the blind re-judgement history "
+                             f"{bh['k']}/{bh['n']} ({bh['k'] / bh['n']:.0%}): Fisher p = {pc.get('fisher_p_vs_blind_history', float('nan')):.2f} — {verdict}")
             nc = s["controls"]["neg_ctrl"]
             if nc.get("blind_history"):
                 bh = nc["blind_history"]

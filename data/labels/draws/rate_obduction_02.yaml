@@ -1,0 +1,193 @@
+# data/labels/draws/rate_obduction_02.yaml -- the draw record of one study batch. Built by pipeline/draw_batch.py;
+# never edited by hand. The sheet and key it hashes live under results/ (not in Git).
+batch_id: rate_obduction_02
+built: '2026-09-04T15:55:52-05:00'
+builder: pipeline/draw_batch.py
+seed: 20260827
+study_id: net_carbon_v1
+pool_id: net_carbon_v1/physical/obduction
+spec_id: v1:31619ba88c252ed8
+event_type: physical_obduction
+criterion_version: phys_net_carbon_v1
+criterion_status: ruled
+cache:
+  path: /Users/mk0964/Documents/release/cache_paper/residual_cache_v4
+  fine_grids: 2542
+  fine_grids_sha256: 11fce215c7db6cebabfbb0d233d17ed7b6674e388bcfb5b91153449ec35f8299
+scores_manifest:
+  path: data/features/net_carbon_v1/SCORES_SHA256
+  sha256: 0a2e5c57d4c525b6286dca2df8e80baa559c80f4b1bfc19b5146b719a616d896
+  built: '2026-09-04T15:14:48'
+  features_manifest_sha256: 14b8ed206cb754f1c65872914c9dfae7f4917774d19ced6def8ebdccabce495d
+role: analysis
+decides: true
+sampling:
+  mode: probability
+  draw: stratified_pps_one_per_float
+  design: probability
+  frame: the 14,697 levels of net_carbon_v1/physical/obduction that the first upward draw (rate_obduction_01) held
+    back and credited to the earlier study's own sample; the study no longer credits it, so it is drawn afresh here
+  frame_definition: levels of this pool whose entry in letter_pool_features.parquet scores 1.96 sigma or more on
+    both AOU and absolute salinity at the detection point; the frozen record of rate_obduction_01 calls the same
+    strata letter_pool_1p96|<band>
+  strata: five pressure bands, <=200, 200-260, 260-400, 400-600, 600-1000 dbar — the strata the frozen record of
+    rate_obduction_01 names for this region
+  inclusion_probability: n_h / N_h within each stratum, exact (one panel per float per stratum by systematic PPS)
+  allocation: Neyman on planned acceptance with a 5% floor per band, at a fixed budget of 90 panels (docs/PLAN.md)
+target:
+  rel_half_width: null
+  planning_base_rate: 0.2013888888888889
+  planning_base_rate_source: the obduction steering labels' own base rate, 116/576 (study-derived)
+  precision_of: this region's own rate
+  panel_budget: 90
+  panel_budget_source: 'docs/PLAN.md: about 90 panels, one per float'
+  variance_target: null
+  variance_held: 0.0
+  variance_open_planned: 0.0017798587824953858
+  float_design_effect: 1.0198192771084338
+  rho_float: 0.235
+  rho_float_source: intra-float correlation implied by the study's pooled float-bootstrap design effect 1.87 at
+    4.7 panels per float
+  variance_open_with_design_effect: 0.0018151342969195414
+  expected_rel_half_width: 0.3971641200889173
+  expected_rel_half_width_if_unclustered: 0.3932859202710497
+  planned_rate_of_this_region: 0.21025214997713332
+  region_share_of_pool: 0.07889947658032478
+  variance_added_to_the_pool_rate: 1.129944225487253e-05
+  neyman_vs_proportional_multiplier: 0.9769307668264202
+  stratified_vs_srs_multiplier: 0.9647152806386624
+steering_labels:
+  n: 576
+  accepted: 116
+  what: the study's own obduction reviews joined to the pool, each with the score a model gave it without seeing
+    its own label
+n_science: 90
+n_controls:
+  positive: 18
+  negative: 20
+floats_in_draw: 83
+floats_with_more_than_one_panel: 7
+max_panels_one_float: 2
+floats_chunked_for_pps: 0
+panels_per_float_in_draw: 1.0843373493975903
+previously_judged_in_draw: 0
+hours_at_planning_rate: 1.0204444444444445
+strata:
+- design_stratum: former_held|<=200
+  N: 4931
+  floats: 446
+  score_min: 5.284742874585277e-05
+  score_max: 0.9700051385274524
+  p_raw: 0.10572524077123018
+  max_float_share: 0.022105049685662136
+  W: 0.33551064843165274
+  p_planned: 0.1393247381591212
+  n: 26
+  inclusion_probability: 0.005272764145203813
+- design_stratum: former_held|200-260
+  N: 4777
+  floats: 463
+  score_min: 6.010321481480367e-05
+  score_max: 0.9956998633550821
+  p_raw: 0.15982944735913637
+  max_float_share: 0.02993510571488382
+  W: 0.32503231952099065
+  p_planned: 0.21062326972243997
+  n: 30
+  inclusion_probability: 0.006280092108017585
+- design_stratum: former_held|260-400
+  N: 2158
+  floats: 321
+  score_min: 0.0001227271292271989
+  score_max: 0.998334987361934
+  p_raw: 0.24412642765163692
+  max_float_share: 0.033827618164967564
+  W: 0.14683268694291352
+  p_planned: 0.3217098430060184
+  n: 16
+  inclusion_probability: 0.0074142724745134385
+- design_stratum: former_held|400-600
+  N: 1493
+  floats: 271
+  score_min: 0.00010839834364300433
+  score_max: 0.9862681092806095
+  p_raw: 0.21385349744411958
+  max_float_share: 0.04554588077695914
+  W: 0.1015853575559638
+  p_planned: 0.2818161710341742
+  n: 10
+  inclusion_probability: 0.006697923643670462
+- design_stratum: former_held|600-1000
+  N: 1338
+  floats: 207
+  score_min: 0.00012045935646128621
+  score_max: 0.985782020133626
+  p_raw: 0.1598877983510237
+  max_float_share: 0.03139013452914798
+  W: 0.09103898754847928
+  p_planned: 0.21070016466830838
+  n: 8
+  inclusion_probability: 0.005979073243647235
+rescale_factor_planned_acceptance: 1.317800150113577
+held_strata: []
+reconstruction:
+  levels: 14697
+  expected_levels: 14697
+  per_stratum:
+    <=200: 4931
+    200-260: 4777
+    260-400: 2158
+    400-600: 1493
+    600-1000: 1338
+  expected_per_stratum:
+    <=200: 4931
+    200-260: 4777
+    260-400: 2158
+    400-600: 1493
+    600-1000: 1338
+  mismatch: []
+controls:
+  positive:
+    source: the first upward calibration set's accepted events (REF_LABEL 1) with a candidate in the pool
+    criterion: phys_net_carbon_v1
+    n_source: 18
+    reference_k: null
+    reference_n: null
+    reference_provenance: the 42 upward calibration panels (calibration_reference_b6.csv); the reader reports the
+      controls, the drift test pools the arms across batches
+    src: first upward calibration set, accepted
+    steering: the study's own obduction reviews joined to the pool, each with the score a model gave it without
+      seeing its own label
+  negative:
+    source: the first upward calibration set's rejected events (REF_LABEL 0) with a candidate in the pool, classifier
+      score < 0.5
+    criterion: phys_net_carbon_v1
+    n_source: 22
+    score_cap: 0.5
+    ceiling: 0.2
+    ceiling_note: display only; a rejected candidate the classifier calls likely is a plausible detector miss, not
+      a control
+    src: first upward calibration set, rejected
+sheet_columns:
+- LABEL
+- SAMPLE_ID
+- WMO
+- CYCLE_NUMBER
+- PRES_ADJUSTED
+- LATITUDE
+- LONGITUDE
+- TIME
+- EVENT_TYPE
+blind: true
+worksheet:
+  path: results/net_carbon_v1/labeling/rate_obduction_02/rate_obduction_02.csv
+  sha256: a02559cf477b1d48654565bed2d04740b2596ca696f09b9c2edf5fed212db43c
+  rows: 128
+answer_key:
+  path: results/net_carbon_v1/labeling/rate_obduction_02/ANSWER_KEY_do_not_open.csv
+  sha256: a6e1ecf1cd278fc06175761d3ff73ab6f3fdf00cdbde818d8e4bbca5424a0473
+  rows: 128
+panels:
+  dir: results/net_carbon_v1/labeling/rate_obduction_02/panels
+  rendered: 128
+  of: 128

@@ -1,13 +1,17 @@
 #!/usr/bin/env python
 """Load a labelled study sheet into the label table's study layer.
 
-usage  ingest_batch.py BATCH_ID [--allow-unfinished] [--replace] [--freeze-reference HOW]
+usage  load_batch.py BATCH_ID [--allow-unfinished] [--replace] [--freeze-reference HOW]
+       (`make load BATCH=<batch id>`)
 reads  data/labels/draws/<BATCH_ID>.yaml (the draw record), the worksheet and the sealed key under
        results/net_carbon_v1/labeling/<BATCH_ID>/
 writes results/net_carbon_v1/labeling/<BATCH_ID>/<BATCH_ID>_LABELLED_<stamp>.csv (the frozen sheet, not in git)
        data/labels/{study_reviews.parquet, study_batches.yaml}, data/labels/draws/<BATCH_ID>.labelled.yaml, LABELLED_SHA256
 In order, none skipped: check the key's hash and the sheet's columns; read the session (progress,
-position, controls, science; the κ gate for a calibration batch); freeze the sheet; append the rows.
+position, controls, science; the κ check for a calibration batch); freeze the sheet; append the rows.
+
+A draw record written in another checkout carries that checkout's absolute paths; the sheet and the
+key are found through `batches.resolve_recorded_path`, which keeps the part from `results/` onward.
 """
 
 from __future__ import annotations
@@ -49,9 +53,10 @@ def _sha(p: pathlib.Path) -> str:
 
 
 def reference_for(rec: dict, key: pd.DataFrame):
-    """The anchor's frozen reference: the key's own REF_LABEL (the upward anchor, carried over from
-    b6) or, when the key was built blank, `data/labels/draws/<batch>.reference.yaml` written by
-    `--freeze-reference`. Returns (frame with KEYS + REF_LABEL, provenance) or (None, {})."""
+    """The frozen answers of the 42 calibration panels: the key's own REF_LABEL (the first upward
+    set, carried over as data) or, when the key was built blank,
+    `data/labels/draws/<batch>.reference.yaml` written by `--freeze-reference`.
+    Returns (frame with KEYS + REF_LABEL, provenance) or (None, {})."""
     if key.REF_LABEL.notna().any():
         ref = key[key.REF_LABEL.notna()].assign(REF_LABEL=lambda d: d.REF_LABEL.astype(int))
         return ref, {"what": rec.get("reference", {}).get("what", "the key's own REF_LABEL"), "n": int(len(ref))}
@@ -66,22 +71,25 @@ def reference_for(rec: dict, key: pd.DataFrame):
 
 
 def freeze_reference(rec: dict, wp: pathlib.Path, key: pd.DataFrame, ws: pd.DataFrame, how: str) -> pathlib.Path:
-    """Write the anchor's reference from a labelled pass, ONCE. Refuses if one exists or if any row
-    is undecided: an anchor is 42 decided levels. `how` names the pass (single pass / consensus)."""
+    """Write the calibration set's frozen answers from a labelled pass, once. Refuses if they exist
+    or if any row is undecided: a calibration set is 42 decided levels. `how` names the pass (a
+    single pass, or the agreement of two)."""
     rp = DRAWS / f"{rec.get('reference_of', rec['batch_id'])}.reference.yaml"
     if rp.exists():
-        raise SystemExit(f"{rp} exists — an anchor is frozen once; a re-freeze by consensus is a new file written by hand-ruled process, not this flag")
+        raise SystemExit(f"{rp} exists — a calibration set's answers are frozen once; re-freezing them is a new "
+                         f"file written by hand, not this flag")
     m = key.merge(ws[["SAMPLE_ID", "LABEL"]], on="SAMPLE_ID", validate="one_to_one")
     m["LABEL"] = pd.to_numeric(m.LABEL, errors="coerce")
     if not m.LABEL.isin([0, 1]).all():
-        raise SystemExit(f"{int((~m.LABEL.isin([0, 1])).sum())} rows undecided or uncertain — every anchor level needs a 0/1")
+        raise SystemExit(f"{int((~m.LABEL.isin([0, 1])).sum())} rows undecided or uncertain — every calibration "
+                         f"panel needs a 0/1")
     cols = B.KEYS + [c for c in ("tier", "companion", "score", "candidate_id") if c in m.columns]
     rows = m[cols].assign(REF_LABEL=m.LABEL.astype(int)).to_dict("records")
     fr = {"batch_id": rec["batch_id"], "pool_id": rec["pool_id"], "criterion_version": rec["criterion_version"],
           "frozen": B.stamp(), "how": how, "source_sheet_sha256": _sha(wp), "n": int(len(rows)),
           "base_rate": f"{int(m.LABEL.sum())}/{len(m)}", "rows": rows}
-    rp.write_text(f"# data/labels/draws/{rec['batch_id']}.reference.yaml -- the anchor's frozen reference labels. Written ONCE by\n"
-                  f"# production/ingest_study_batch.py --freeze-reference; never edited by hand.\n"
+    rp.write_text(f"# data/labels/draws/{rec['batch_id']}.reference.yaml -- the 42 calibration panels' frozen answers.\n"
+                  f"# Written once by pipeline/load_batch.py --freeze-reference; never edited by hand.\n"
                   + yaml.safe_dump(fr, sort_keys=False, allow_unicode=True, width=110), encoding="utf-8")
     return rp
 
@@ -91,14 +99,15 @@ def session_block(rec: dict, wp: pathlib.Path, kp: pathlib.Path, ws: pd.DataFram
     if rec["role"] == "calibration":
         ref, ref_meta = reference_for(rec, key)
         if ref is None:
-            return {"kind": "calibration", "gate": "no REF_LABEL yet — an anchor awaiting adjudication; ingested as evidence only"}
+            return {"kind": "calibration", "check": "no REF_LABEL yet — a calibration set whose answers are not "
+                                                     "decided; loaded as evidence only"}
         rep = B.calibration_report(ws, ref)
         rep["kind"] = "calibration"
         rep["reference"] = ref_meta
         if ref_meta.get("source_sheet_sha256") == _sha(wp):
             rep["reference_is_this_pass"] = True
-            rep["verdict_means"] = ("the reference IS this sheet's own labels, so κ = 1 by construction; the first real gate is the "
-                                    "blind re-labelling before the NEXT session")
+            rep["verdict_means"] = ("the reference is this sheet's own labels, so κ = 1 by construction; the first "
+                                    "real check is the blind re-labelling before the next session")
         return rep
     from argopod.review.session import read_session
 
@@ -121,17 +130,13 @@ def session_block(rec: dict, wp: pathlib.Path, kp: pathlib.Path, ws: pd.DataFram
     def ci(k, n):
         return [float(_beta.ppf(0.025, k + 0.5, n - k + 0.5)), float(_beta.ppf(0.975, k + 0.5, n - k + 0.5))] if n else None
 
-    # A control is read against its STANDING verdict as the label table records it. There is no
-    # separate re-look layer that could overturn it, so no verdict is flipped.
-    flipped_keys: set = set()
-    m["_k"] = list(zip(m.WMO.astype(int), m.CYCLE_NUMBER.round().astype(int), m.PRES_ADJUSTED.round().astype(int)))
+    # A control is read against its standing verdict as the label table records it. There is no
+    # separate re-look layer that could overturn one, so there is nothing to subtract.
     ctr = {}
     for arm in B.CONTROL_STRATA:
         c = m[(m.stratum == arm) & m.LABEL.isin([0, 1])]
-        st = c[~c._k.isin(flipped_keys)]
-        ctr[arm] = {"n": int(len(c)), "accepted": int((c.LABEL == 1).sum()), "ci95": ci(int((c.LABEL == 1).sum()), len(c)),
-                    "overturned_in_ledger": int(c._k.isin(flipped_keys).sum()),
-                    "standing": {"n": int(len(st)), "accepted": int((st.LABEL == 1).sum()), "ci95": ci(int((st.LABEL == 1).sum()), len(st))}}
+        k = int((c.LABEL == 1).sum())
+        ctr[arm] = {"n": int(len(c)), "accepted": k, "ci95": ci(k, len(c))}
     pos = ctr[B.POS_CTRL]
     if ref is not None and pos["n"]:
         ctr[B.POS_CTRL]["reference"] = {"k": ref[0], "n": ref[1], "what": ref[2]}
@@ -165,15 +170,15 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("batch_id")
     ap.add_argument("--allow-unfinished", action="store_true")
-    ap.add_argument("--replace", action="store_true", help="re-ingest a batch already in the study layer")
+    ap.add_argument("--replace", action="store_true", help="load a batch already in the study layer again")
     ap.add_argument("--freeze-reference", metavar="HOW",
-                    help="a calibration batch built with REF_LABEL blank: freeze THIS pass's labels as the anchor's reference "
-                         "(HOW names the pass, e.g. 'single pass by the user, consensus pending')")
+                    help="a calibration batch built with REF_LABEL blank: freeze this pass's labels as the set's frozen "
+                         "answers (HOW names the pass, e.g. 'a single pass by the user, agreement pending')")
     args = ap.parse_args()
     bid = args.batch_id
     rec = yaml.safe_load((DRAWS / f"{bid}.yaml").read_text())
     crit = require_ruled(load_criteria()[rec["criterion_version"]])
-    wp, kp = pathlib.Path(rec["worksheet"]["path"]), pathlib.Path(rec["answer_key"]["path"])
+    wp, kp = B.resolve_recorded_path(rec["worksheet"]["path"]), B.resolve_recorded_path(rec["answer_key"]["path"])
     if _sha(kp) != rec["answer_key"]["sha256"]:
         raise SystemExit(f"{kp} does not hash to the sealed key the draw record names — refusing")
     ws, key = pd.read_csv(wp), pd.read_csv(kp)
@@ -194,8 +199,8 @@ def main() -> None:
             raise SystemExit("--freeze-reference is for a calibration batch")
         print("reference frozen:", freeze_reference(rec, wp, key, ws, args.freeze_reference))
 
-    # THE GATE IS HARD: an analysis batch is ingested only if an anchor of the same pool was
-    # re-labelled PASS before its sheet was written (production/LABELING_PROTOCOL.md). The first
+    # The check is hard: an analysis batch is loaded only if the 42 calibration panels of the same
+    # pool were re-labelled PASS before its sheet was written (docs/LABELING_PROTOCOL.md). The first
     # batch met it by file times alone; now nothing else is accepted.
     anchor = None
     if rec["role"] == "analysis":
@@ -206,8 +211,8 @@ def main() -> None:
             if r0["pool_id"] == rec["pool_id"] and l["session"].get("verdict") == "PASS" and l.get("worksheet_mtime", "") < ws_mtime:
                 cands.append((l["worksheet_mtime"], l["batch_id"], l["session"]["kappa"]))
         if not cands:
-            raise SystemExit(f"{bid}: no calibration anchor of {rec['pool_id']} re-labelled PASS before this sheet "
-                             f"({ws_mtime}) — the protocol's gate; label the anchor first")
+            raise SystemExit(f"{bid}: no calibration set of {rec['pool_id']} re-labelled PASS before this sheet "
+                             f"({ws_mtime}) — the protocol's check; label the 42 calibration panels first")
         anchor = {"batch_id": cands[-1][1], "worksheet_mtime": cands[-1][0], "kappa": cands[-1][2]}
 
     sess = session_block(rec, wp, kp, ws, key)
@@ -253,18 +258,18 @@ def main() -> None:
     old = pd.read_parquet(STUDY_REVIEWS) if STUDY_REVIEWS.exists() else None
     if old is not None and (old.batch_id == bid).any():
         if not args.replace:
-            raise SystemExit(f"{bid} is already in the study layer — pass --replace to re-ingest")
+            raise SystemExit(f"{bid} is already in the study layer — pass --replace to load it again")
         prev_sha = set(old.loc[old.batch_id == bid, "sheet_sha256"])
         if prev_sha != {sheet_sha}:
-            raise SystemExit(f"{bid}: the sheet's bytes changed since it was ingested ({prev_sha} -> {sheet_sha}); the label table is "
-                             f"append-only — a re-labelled sheet is a NEW batch id whose rows supersede, never a replacement")
+            raise SystemExit(f"{bid}: the sheet's bytes changed since it was loaded ({prev_sha} -> {sheet_sha}); the label table is "
+                             f"append-only — a re-labelled sheet is a new batch id whose rows supersede, never a replacement")
         old = old[old.batch_id != bid]   # same bytes: the session read is re-issued, the review rows are identical
     allR = pd.concat([old, R], ignore_index=True) if old is not None else R
     allR.to_parquet(STUDY_REVIEWS, index=False)
 
     # --- the batch record --------------------------------------------------------------------
     batch = {
-        "batch_id": bid, "raw_root_id": "net_carbon_v1_labeling", "sheet_path": str(frozen.relative_to(REPO)),
+        "batch_id": bid, "raw_root_id": "net_carbon_v1_labeling", "sheet_path": B.repo_relative(frozen),
         "sheet_sha256": sheet_sha, "worksheet_blank_sha256": rec["worksheet"]["sha256"], "answer_key_sha256": rec["answer_key"]["sha256"],
         "rows": int(len(m)), "columns_kept": B.WORKSHEET_COLS, "first_written": rec["built"], "ingested": B.stamp(),
         "study_id": rec["study_id"], "pool_id": rec["pool_id"], "spec_id": rec["spec_id"], "event": rec["event_type"].split("_")[0],
@@ -273,24 +278,24 @@ def main() -> None:
         "sampling": {"mode": rec["sampling"]["mode"], "draw": rec["sampling"]["draw"], "design": rec["sampling"]["design"],
                      "frame": rec["sampling"]["frame"], "inclusion_probability": "per review row (`inclusion_probability`), n_h/N_h within stratum",
                      "has_own_stratum_column": True},
-        "blind": True, "answer_key_batch": str(kp.relative_to(REPO)), "derived_from": None, "invalidated": None,
+        "blind": True, "answer_key_batch": B.repo_relative(kp), "derived_from": None, "invalidated": None,
         "session": sess,
     }
     raw = yaml.safe_load(STUDY_BATCHES.read_text()) if STUDY_BATCHES.exists() else {"batches": []}
     raw["batches"] = [b for b in raw["batches"] if b["batch_id"] != bid] + [batch]
     STUDY_BATCHES.write_text(
         "# data/labels/study_batches.yaml -- the study label table: one record per labelled study sheet.\n"
-        "# BUILT by pipeline/ingest_batch.py from the draw records and the labelled sheets; never edited by hand.\n"
+        "# Built by pipeline/load_batch.py from the draw records and the labelled sheets; never edited by hand.\n"
         + yaml.safe_dump(raw, sort_keys=False, allow_unicode=True, width=110), encoding="utf-8")
     labelled = {"batch_id": bid, "ingested": batch["ingested"], "worksheet_mtime": ws_mtime, "anchor": anchor,
-                "labelled_sheet": {"path": str(frozen), "sha256": sheet_sha},
+                "labelled_sheet": {"path": B.repo_relative(frozen), "sha256": sheet_sha},
                 "rows": int(len(m)), "decided": int(lab.isin([0, 1]).sum()), "accepted": int((lab == 1).sum()),
                 "uncertain": int((lab == 2).sum()), "blank": int(lab.isna().sum()), "session": sess}
     batch["anchor"] = anchor
     batch["worksheet_mtime"] = ws_mtime
     (DRAWS / f"{bid}.labelled.yaml").write_text(
-        f"# data/labels/draws/{bid}.labelled.yaml -- the session read and the hashes of the labelled sheet. BUILT by\n"
-        f"# pipeline/ingest_batch.py; never edited by hand.\n"
+        f"# data/labels/draws/{bid}.labelled.yaml -- the session read and the hashes of the labelled sheet. Built by\n"
+        f"# pipeline/load_batch.py; never edited by hand.\n"
         + yaml.safe_dump(labelled, sort_keys=False, allow_unicode=True, width=110, default_flow_style=False), encoding="utf-8")
     (DRAWS / "LABELLED_SHA256").write_text(
         "# provenance of the labelled study batches -- do not edit by hand\n"

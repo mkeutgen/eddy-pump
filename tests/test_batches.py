@@ -1,19 +1,22 @@
 """The labelling batches are probability draws with exact, declared inclusion probabilities —
 plan step 6 *(2026-08-27)*.
 
-Two halves. The first proves the DESIGN on synthetic data: the allocation honours its floor and
+Two halves. The first proves the design on synthetic data: the allocation honours its floor and
 sums; the one-per-float draw gives every candidate exactly n/N (Monte Carlo) and never two
 panels from one cluster; the Hájek estimator built on those probabilities is unbiased over
 replications and meets the half-width the solver planned for; controls and score-selected rows
-are refused by the rate; the calibration gate passes the reference against itself and fails a
-shuffled copy. The second pins the four batches actually built (`data/labels/draws/`) when the
-records are present: identities, blindness, hashes, the 42 + 42 calibration rows, and that every
-science row's probability is its stratum's n/N.
+are refused by the rate; the calibration check passes the reference against itself and fails a
+shuffled copy. The second pins the batches actually built (`data/labels/draws/`) when the records
+are present: identities, blindness, hashes, the 42 + 42 calibration rows, and that every science
+row's probability is its stratum's n/N. It also pins the two things a redraw could destroy: that
+the script refuses to draw a batch that already has a record, and that the region rate_obduction_02
+samples is the 14,697 levels the first upward draw held back, level for level.
 """
 
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 
 import numpy as np
@@ -179,7 +182,7 @@ def test_a_rate_refuses_rows_without_an_inclusion_probability():
         B.stratified_rate(y, pi, np.array(["a"] * 4), np.array([1, 2, 3, 4]), {"a": 100}, n_boot=10)
 
 
-def test_the_calibration_gate():
+def test_the_calibration_check():
     rng = np.random.default_rng(5)
     ref = pd.DataFrame({"WMO": np.arange(42) + 5_000_000, "CYCLE_NUMBER": 10.0, "PRES_ADJUSTED": 300.0,
                         "REF_LABEL": np.r_[np.ones(22, int), np.zeros(20, int)]})
@@ -223,17 +226,17 @@ def test_the_worksheet_is_blind_and_the_key_is_not():
 # --------------------------------------------------------------------------------------------- #
 # the batches actually built
 # --------------------------------------------------------------------------------------------- #
-built = pytest.mark.skipif(not (DRAWS / "DRAWS_SHA256").exists(), reason="run production/build_batches.py")
+built = pytest.mark.skipif(not (DRAWS / "DRAWS_SHA256").exists(), reason="run pipeline/draw_batch.py <batch>")
 
 
 def _records():
-    """The DRAW records only; `<id>.labelled.yaml` is the ingestion's record of a labelled sheet."""
+    """The draw records only; `<id>.labelled.yaml` is the loader's record of a labelled sheet."""
     return {p.stem: yaml.safe_load(p.read_text()) for p in sorted(DRAWS.glob("*.yaml"))
             if not (p.name.endswith(".labelled.yaml") or p.name.endswith(".reference.yaml"))}
 
 
 @built
-def test_the_four_records_match_their_manifest():
+def test_every_record_matches_its_manifest_and_has_a_design_that_made_it():
     for ln in (DRAWS / "DRAWS_SHA256").read_text().splitlines():
         if ln.startswith("#") or not ln.strip():
             continue
@@ -241,8 +244,10 @@ def test_the_four_records_match_their_manifest():
         assert hashlib.sha256((DRAWS / name).read_bytes()).hexdigest() == sha, name
     R = _records()
     base = {b for b in R if "_pass" not in b}
-    assert base == {"calib_obduction_b6", "calib_subduction_v1", "rate_obduction_01", "rate_subduction_01"}
-    for b in set(R) - base:   # blind re-labelling copies of an anchor (--repass): same levels, new order
+    # the four already drawn, and nothing the draw script cannot name
+    assert base >= {"calib_obduction_b6", "calib_subduction_v1", "rate_obduction_01", "rate_subduction_01"}
+    assert base <= set(_draw_script().DESIGNS), sorted(base - set(_draw_script().DESIGNS))
+    for b in set(R) - base:   # blind re-labelling copies of a calibration set (--repass): same levels, new order
         src = R[b]["reference_of"]
         assert R[b]["derived_from"] == src and R[src]["role"] == "calibration" and R[b]["role"] == "calibration"
         assert R[b]["worksheet"]["rows"] == R[src]["worksheet"]["rows"] == 42
@@ -277,7 +282,7 @@ def test_the_rate_arms_are_probability_draws_with_exact_inclusion_probabilities(
             assert s["n"] >= int(np.floor(B.FLOOR_SHARE * n)), s
             assert abs(s["inclusion_probability"] - s["n"] / s["N"]) < 1e-12
             assert 0.005 <= s["p_planned"] <= 0.995
-        # the planned precision is the target WITH the float design effect the draw's own clustering
+        # the planned precision is the target with the float design effect the draw's own clustering
         # implies; the allocation beats proportional allocation and simple random sampling
         t = r["target"]
         assert abs(t["expected_rel_half_width"] - t["rel_half_width"]) < 0.003
@@ -302,10 +307,10 @@ def test_the_upward_draw_recorded_a_held_region_the_rate_no_longer_credits():
     assert sum(s["N"] for s in down["strata"]) == PINS["pool_rows"]["physical_subduction"]
     assert up["controls"]["positive"]["criterion"] == "phys_obduction_letter_b6"
     # the first batch's record still names the re-look survival (223/234) as the reference — the wrong
-    # population, kept as history; the ingestion reads the controls against the blind history instead
+    # population, kept as history; the loader reads the controls against the blind history instead
     assert up["controls"]["positive"]["reference_k"] == 223 and up["controls"]["positive"]["reference_n"] == 234
     assert down["controls"]["positive"]["criterion"] == "phys_companion_2024"
-    assert down["controls"]["positive"]["reference_k"] is None, "no Fisher reference until the downward anchor is adjudicated"
+    assert down["controls"]["positive"]["reference_k"] is None, "no Fisher reference until the downward calibration set is decided"
 
 
 @built
@@ -325,13 +330,13 @@ def test_the_two_calibration_sets():
 @built
 def test_the_sheets_on_disk_when_present():
     for bid, r in _records().items():
-        wp, kp = Path(r["worksheet"]["path"]), Path(r["answer_key"]["path"])
+        wp, kp = B.resolve_recorded_path(r["worksheet"]["path"]), B.resolve_recorded_path(r["answer_key"]["path"])
         if not wp.exists():
             pytest.skip("sheets not on this machine")
         ws, key = pd.read_csv(wp), pd.read_csv(kp)
         labelled = ws.LABEL.notna().any()
-        # the key is sealed: its hash never moves. The worksheet's hash is the BLANK sheet's until the
-        # reviewer writes into it; a labelled sheet is hashed by the ingestion record instead.
+        # the key is sealed: its hash never moves. The worksheet's hash is the blank sheet's until the
+        # reviewer writes into it; a labelled sheet is hashed by the loader's record instead.
         assert hashlib.sha256(kp.read_bytes()).hexdigest() == r["answer_key"]["sha256"], bid
         if not labelled:
             assert hashlib.sha256(wp.read_bytes()).hexdigest() == r["worksheet"]["sha256"], bid
@@ -350,7 +355,9 @@ def test_the_sheets_on_disk_when_present():
                 assert row["size"] == planned[src][0] and abs(row["first"] - planned[src][1]) < 1e-12
             assert abs((1 / sci.inclusion_probability).sum() - sum(s["N"] for s in r["strata"])) < 1e-6
             ctrl = key[key.stratum.isin(B.CONTROL_STRATA)]
-            assert len(ctrl) == 40 and ctrl.inclusion_probability.isna().all() and ctrl.REF_LABEL.isin([0, 1]).all()
+            # the controls are however many the reference could give (rate_obduction_02 has 18 + 20)
+            assert len(ctrl) == sum(int(v) for v in r["n_controls"].values())
+            assert ctrl.inclusion_probability.isna().all() and ctrl.REF_LABEL.isin([0, 1]).all()
         elif bid == "calib_obduction_b6":
             assert key.REF_LABEL.isin([0, 1]).all() and int(key.REF_LABEL.sum()) == 18
         else:
@@ -359,19 +366,21 @@ def test_the_sheets_on_disk_when_present():
 
 
 @built
-def test_an_ingested_analysis_batch_records_its_anchor_and_reads_its_controls_on_standing_verdicts():
+def test_a_loaded_analysis_batch_records_the_calibration_set_it_passed_and_its_controls():
+    """Read from the frozen record of the first upward batch. `overturned_in_ledger` and `standing`
+    are fields of that record, written by the earlier repository; the loader here no longer computes
+    them, and the rate report no longer prints them."""
     lab = {p.name.replace(".labelled.yaml", ""): yaml.safe_load(p.read_text()) for p in DRAWS.glob("*.labelled.yaml")}
     if "rate_obduction_01" not in lab:
-        pytest.skip("rate_obduction_01 not ingested on this machine")
+        pytest.skip("rate_obduction_01 is not on this machine")
     l = lab["rate_obduction_01"]
     assert l["anchor"]["batch_id"] == "calib_obduction_b6" and l["anchor"]["worksheet_mtime"] < l["worksheet_mtime"]
     pc = l["session"]["controls"]["pos_ctrl"]
-    assert pc["n"] == 20 and pc["accepted"] == 14 and pc["overturned_in_ledger"] == 4
-    assert pc["standing"] == {"n": 16, "accepted": 14, "ci95": pc["standing"]["ci95"]}
+    assert pc["n"] == 20 and pc["accepted"] == 14
     bh = pc["blind_history"]
     assert bh["n"] < 1000, "the honest blind history is one pair per candidate and sheet, no snapshot twins"
     assert 0.6 < bh["k"] / bh["n"] < 0.95
-    assert pc["fisher_p_vs_blind_history_standing"] > 0.05
+    assert pc["fisher_p_vs_blind_history"] > 0.05
     nc = l["session"]["controls"]["neg_ctrl"]
     assert nc["with_score_above_0p5"]["n"] == 2 and nc["with_score_above_0p5"]["accepted"] == 2
     assert l["session"]["target_halves"]["first"]["accept"] > l["session"]["target_halves"]["second"]["accept"]
@@ -397,10 +406,10 @@ def test_the_rate_status_uses_the_design_variance_and_names_levels():
 
 
 @built
-def test_the_downward_anchor_is_frozen_from_one_pass_and_the_criterion_points_at_it():
+def test_the_downward_calibration_answers_are_frozen_once_and_the_criterion_points_at_them():
     rp = DRAWS / "calib_subduction_v1.reference.yaml"
     if not rp.exists():
-        pytest.skip("the downward anchor is not frozen on this machine")
+        pytest.skip("the downward calibration answers are not on this machine")
     from eddy_pump.criteria import load_criteria
 
     fr = yaml.safe_load(rp.read_text())
@@ -408,7 +417,7 @@ def test_the_downward_anchor_is_frozen_from_one_pass_and_the_criterion_points_at
     assert len(ref) == 42 and ref.REF_LABEL.isin([0, 1]).all() and int(ref.REF_LABEL.sum()) == 17
     assert fr["base_rate"] == "17/42" and "consensus" in fr["how"] and "adjudicated" in fr["how"]
     assert [h.get("base_rate") for h in fr["history"][:2]] == ["15/42", "20/42"]
-    assert len(fr["history"][2]["rulings"]) == 5 and sum(r["ruled"] for r in fr["history"][2]["rulings"]) == 2
+    assert len(fr["history"][2]["rulings"]) == 5 and sum(r["ruled"] for r in fr["history"][2]["rulings"]) == 2   # the frozen record's own field names
     assert ref.WMO.is_unique
     # 8 of the 12 companion-verified, top-score panels pass clause 4 after adjudication (7 on the first pass)
     top = ref[ref.tier == "clear_TP"]
@@ -419,3 +428,126 @@ def test_the_downward_anchor_is_frozen_from_one_pass_and_the_criterion_points_at
         lab = yaml.safe_load((DRAWS / f"{b}.labelled.yaml").read_text())
         assert not lab["session"].get("reference_is_this_pass") and lab["session"]["kappa"] > k, b
         assert lab["labelled_sheet"]["sha256"] in {h.get("sheet_sha256") for h in fr["history"]}
+
+
+# --------------------------------------------------------------------------------------------- #
+# what a redraw could destroy
+# --------------------------------------------------------------------------------------------- #
+def _draw_script():
+    """`pipeline/draw_batch.py` as a module (it is a script, not a package)."""
+    import sys
+
+    sys.path.insert(0, str(REPO / "pipeline"))
+    sys.path.insert(0, str(REPO / "src"))
+    import draw_batch
+
+    return draw_batch
+
+
+def test_the_draw_refuses_a_batch_that_already_has_a_record(tmp_path, monkeypatch):
+    """A second draw of a measured rate would replace the frame its number stands on. The script
+    refuses, names the file that says so, and writes nothing — there is no override flag.
+
+    The draw directory is a throwaway copy, so a regression here cannot reach the real records; the
+    real record is checked byte for byte at the end anyway.
+    """
+    import shutil
+    import sys
+
+    D = _draw_script()
+    real = DRAWS / "rate_obduction_01.yaml"
+    if not real.exists():
+        pytest.skip("rate_obduction_01 is not on this machine")
+    before_real = real.read_bytes()
+    draws = tmp_path / "draws"
+    draws.mkdir()
+    shutil.copy(real, draws / "rate_obduction_01.yaml")
+    before = {p.name: p.read_bytes() for p in sorted(draws.iterdir())}
+    monkeypatch.setattr(D, "DRAWS", draws)
+    monkeypatch.setattr(D.L, "STUDY_BATCHES", tmp_path / "no_such_study_batches.yaml")
+
+    assert D.already_drawn("rate_obduction_01") is not None
+    assert D.already_drawn("rate_obduction_02") is None      # not drawn: nothing to refuse
+    monkeypatch.setattr(sys, "argv", ["draw_batch.py", "rate_obduction_01"])
+    with pytest.raises(SystemExit) as e:
+        D.main()
+    msg = str(e.value)
+    assert "already been drawn" in msg and "rate_obduction_01.yaml" in msg
+    assert "no flag that overrides" in msg
+    assert {p.name: p.read_bytes() for p in sorted(draws.iterdir())} == before, "the refusal wrote something"
+    assert real.read_bytes() == before_real
+
+    # and with no batch named at all: the same refusal to guess
+    monkeypatch.setattr(sys, "argv", ["draw_batch.py"])
+    with pytest.raises(SystemExit) as e2:
+        D.main()
+    assert "name the batch to draw" in str(e2.value)
+    assert {p.name: p.read_bytes() for p in sorted(draws.iterdir())} == before
+
+
+def test_the_region_the_second_upward_batch_samples_is_the_one_the_first_draw_held_back():
+    """rate_obduction_02 samples the levels rate_obduction_01 held back. The reconstruction has to
+    be exact — 14,697 levels and the frozen record's five per-band counts — or the rate would divide
+    by a region nobody measured. This also pins why it is reconstructed from the earlier study's own
+    detection table: this study's residual columns give a different, slightly smaller region."""
+    D = _draw_script()
+    if not D.HELD_REFERENCE.exists():
+        pytest.skip("the earlier study's detection table is not on this machine")
+    saved = REPO / "data/candidates/net_carbon_v1/physical_obduction.parquet"
+    if not saved.exists():
+        pytest.skip("the saved upward list is not on this machine")
+    c = pd.read_parquet(saved, columns=B.KEYS + ["AOU_SCALE_RES_ROB", "ABS_SAL_SCALE_RES_ROB"])
+    c["key"] = B.key3(c)
+    c = c.drop_duplicates("key")
+    h = D.held_region(c)
+    assert len(h) == D.HELD_LEVELS == 14_697
+    check = D.held_region_matches_the_frozen_record(h)
+    assert check["mismatch"] == []
+    if (DRAWS / "rate_obduction_01.yaml").exists():
+        frozen = yaml.safe_load((DRAWS / "rate_obduction_01.yaml").read_text())
+        want = {r["stratum"].split("|", 1)[1]: int(r["N"]) for r in frozen["held_strata"]}
+        assert want == {"<=200": 4931, "200-260": 4777, "260-400": 2158, "400-600": 1493, "600-1000": 1338}
+        assert check["per_stratum"] == want and sum(want.values()) == 14_697
+        # the pool splits in two with nothing left over
+        assert sum(s["N"] for s in frozen["strata"]) + len(h) == PINS["pool_rows"]["physical_obduction"]
+    # this study's own residual columns are not the definition: a 1.96 sigma cut on them differs
+    own = int(((c.AOU_SCALE_RES_ROB.abs() >= D.HELD_GATE) & (c.ABS_SAL_SCALE_RES_ROB.abs() >= D.HELD_GATE)
+               & c.key.isin(set(h.key))).sum())
+    assert own != len(h), "if these agreed the region could be cut from this study's own columns"
+
+
+def test_a_blind_re_labelling_copy_is_the_same_copy_in_every_process():
+    """The shuffle of a re-labelling copy is seeded from the sha256 of its name, so two processes
+    give the same permutation. Python's own hash() is salted per process and would not."""
+    import subprocess
+    import sys
+
+    code = (
+        "import os, sys, numpy as np\n"
+        f"sys.path.insert(0, {str(REPO / 'pipeline')!r}); sys.path.insert(0, {str(REPO / 'src')!r})\n"
+        "import draw_batch as D\n"
+        "print(D.seed_of('calib_subduction_v1_pass9'))\n"
+        "print(list(np.random.default_rng([D.seed_of('calib_subduction_v1_pass9'), 9]).permutation(42)))\n"
+        "print(hash('calib_subduction_v1_pass9'))\n"
+    )
+    outs = []
+    for salt in ("0", "12345"):
+        env = dict(**os.environ, PYTHONHASHSEED=salt)
+        outs.append(subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                                   env=env, check=True).stdout.splitlines())
+    assert outs[0][0] == outs[1][0], "the seed moved between processes"
+    assert outs[0][1] == outs[1][1], "the permutation moved between processes"
+    assert outs[0][2] != outs[1][2], "PYTHONHASHSEED did not take: the test proves nothing"
+
+
+def test_a_recorded_path_resolves_into_this_checkout():
+    """The first draw records carry another checkout's absolute paths; they are read by keeping the
+    part from `results/` onward and joining it to this repo."""
+    here = REPO / "results/net_carbon_v1/labeling/rate_obduction_01/rate_obduction_01.csv"
+    foreign = "/somewhere/else/eddy-pump/results/net_carbon_v1/labeling/rate_obduction_01/rate_obduction_01.csv"
+    if here.exists():
+        assert B.resolve_recorded_path(foreign) == here
+        assert B.resolve_recorded_path(str(here)) == here
+        assert B.repo_relative(here) == "results/net_carbon_v1/labeling/rate_obduction_01/rate_obduction_01.csv"
+    missing = "/somewhere/else/eddy-pump/results/no_such_batch/no_such_file.csv"
+    assert B.resolve_recorded_path(missing) == Path(missing), "an unknown path is handed back unchanged"

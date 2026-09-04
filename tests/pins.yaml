@@ -30,7 +30,7 @@ spec_ids_before_the_ceiling_ruling:   # what the six ids read before the nitrate
 fleet:   # config/fleet.csv — the build list, row for row the MANIFEST.csv of the bound cache (the fourth build)
   floats: 2574
   tiers: [1, 2, 3, 4]
-  labels:            # grid flavour -> how many floats are promised it
+  grid_kinds:        # grid kind -> how many floats are promised it
     paper_phys: 1181
     paper_all: 953
     paper_bbp: 382

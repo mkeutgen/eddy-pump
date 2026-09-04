@@ -16,6 +16,11 @@
 # Destination:
 #   CACHE_DIR=/path   where residual_cache_v4/ is written (default: $HOME/eddy-pump-cache)
 #
+# The identity file in the repository records the absolute path of the machine the cache was built
+# on, which is not this machine's path. So the last thing this script prints is the one line to
+# export -- EDDY_PUMP_CACHE -- which tells every study tool where the grids are here. The
+# fingerprint still decides whether they are the right grids.
+#
 # Flags:
 #   --extras     also extract old_labels/, letter_v1_candidates/ and labels_raw (classifier + provenance)
 #   --keep       keep the downloaded tarballs after extracting (default: remove them)
@@ -98,9 +103,13 @@ cat >&2 <<TXT
 
 done. the fleet cache is at $CACHE_DIR/residual_cache_v4
 
+  tell the study where it is -- put this in your shell profile:
+
+      export EDDY_PUMP_CACHE=$CACHE_DIR/residual_cache_v4
+
   science check (the fingerprint the study refuses to run without):
       fine grids           2542
       fine_grids_sha256    $FINGERPRINT
   confirm by re-detecting the six pools from the extracted grids:
-      make verify-candidates
+      EDDY_PUMP_CACHE=$CACHE_DIR/residual_cache_v4 make verify-candidates
 TXT

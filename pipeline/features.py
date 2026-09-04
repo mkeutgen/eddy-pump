@@ -1,16 +1,20 @@
 """Compute the classifier's features for every candidate of the two physical pools.
 
 reads  config/events.yaml, data/candidates/net_carbon_v1/physical_{obduction,subduction}.parquet,
-       the bound cache's per-float coarse and fine residual grids
+       the cache's per-float coarse and fine residual grids
 writes results/net_carbon_v1/features/<pool>.parquet (one row per candidate; not in git)
        data/features/net_carbon_v1/FEATURES_SHA256 (rows, columns, file hash, cache identity)
 About 0.03 s per candidate, about an hour for both pools. `--limit-floats N` for a dry run; `--pools`.
+
+Two refusals. The cache on disk is fingerprinted before anything is read, and a fingerprint that
+is not the one the saved candidate lists were built from stops the run. Any float that contributes
+no features — no grids, or a grid the extractor raised on — is named on the way past and stops the
+run at the end, because features missing for a float are candidates missing from every score.
 """
 from __future__ import annotations
 
 import argparse
 import datetime as _dt
-import glob
 import hashlib
 import json
 import pathlib
@@ -26,6 +30,7 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
 
 from argopod.triage.features import extract_features_batch  # noqa: E402
+from eddy_pump import candidates as C  # noqa: E402
 from eddy_pump.manifest import load_manifest  # noqa: E402
 
 KEYS = ["WMO", "CYCLE_NUMBER", "PRES_ADJUSTED"]
@@ -33,15 +38,8 @@ CANDIDATES = REPO / "data/candidates/net_carbon_v1"   # the saved lists, full ta
 MANIFEST_DIR = REPO / "data/features/net_carbon_v1"
 
 
-def grids_for(cache_dir: pathlib.Path, wmo: int):
-    c = glob.glob(str(cache_dir / f"{wmo}_*_coarse.parquet"))
-    f = glob.glob(str(cache_dir / f"{wmo}_*_fine.parquet"))
-    if not c or not f:
-        return None
-    return pd.read_parquet(c[0]), pd.read_parquet(f[0])
-
-
-def build(pool, cache_dir: pathlib.Path, out: pathlib.Path, limit_floats: int | None) -> dict:
+def build(pool, cache_dir: pathlib.Path, flavours: dict[int, str], out: pathlib.Path,
+          limit_floats: int | None, failures: list[str]) -> dict:
     channel, direction = pool.pool_id.split("/")[1:]
     cand = pd.read_parquet(CANDIDATES / f"{channel}_{direction}.parquet")
     for k in KEYS:
@@ -55,17 +53,29 @@ def build(pool, cache_dir: pathlib.Path, out: pathlib.Path, limit_floats: int | 
     t0 = time.time()
     parts, ok, miss = [], 0, 0
     for i, wmo in enumerate(wmos):
-        gg = grids_for(cache_dir, int(wmo))
-        if gg is None:
+        flavour = flavours.get(int(wmo))
+        if flavour is None:
             miss += 1
+            msg = f"{pool.pool_id}: float {int(wmo)} has no grids in {cache_dir}"
+            failures.append(msg)
+            print(f"  {msg}", flush=True)
             continue
-        coarse, fine = gg
+        try:
+            coarse, fine = C.read_grids(cache_dir, int(wmo), flavour)
+        except Exception as exc:  # one float must not sink the run; it is named and counted
+            miss += 1
+            msg = f"{pool.pool_id}: float {int(wmo)} ({flavour}) would not read — {type(exc).__name__}: {exc}"
+            failures.append(msg)
+            print(f"  {msg}", flush=True)
+            continue
         sub = cand[cand.WMO == wmo]
         try:
             F = extract_features_batch(coarse, fine, sub, list(pool.spec.variables), pool.spec.params)
-        except Exception as exc:  # one float must not sink the run; the manifest counts it
-            print(f"  float {int(wmo)}: {exc}", flush=True)
+        except Exception as exc:  # one float must not sink the run; it is named and counted
             miss += 1
+            msg = f"{pool.pool_id}: float {int(wmo)} ({flavour}) has no features — {type(exc).__name__}: {exc}"
+            failures.append(msg)
+            print(f"  {msg}", flush=True)
             continue
         for k in KEYS:
             F[k] = pd.to_numeric(F[k], errors="coerce").round(0)
@@ -97,7 +107,15 @@ def main() -> None:
     ap.add_argument("--suffix", default="", help="appended to the output file name (dry runs)")
     a = ap.parse_args()
     study = load_manifest()
+    # Refuse a cache that is not the one the saved candidate lists were built from, and keep the
+    # identity MEASURED here — not the copy the identity file carries. Writing the copy into the
+    # provenance would make every later comparison against it compare a number with itself.
+    live = C.require_bound_cache(study)
     cache_dir = pathlib.Path(study.cache.path)
+    print(f"{study.study_id}: cache {cache_dir} ({live.fine_grids} fine grids, "
+          f"{live.fine_grids_sha256[:16]}…) is the one the saved lists were built from", flush=True)
+    flavours = C.float_flavours(cache_dir)
+    failures: list[str] = []
     records = []
     for pool in study.pools:
         channel, direction = pool.pool_id.split("/")[1:]
@@ -105,22 +123,31 @@ def main() -> None:
             continue
         name = f"{channel}_{direction}{a.suffix}.parquet"
         out = study.output.resolve("features", name)
-        records.append(build(pool, cache_dir, out, a.limit_floats))
+        records.append(build(pool, cache_dir, flavours, out, a.limit_floats, failures))
+    if failures:
+        for line in failures[:20]:
+            print(f"  {line}")
+        if len(failures) > 20:
+            print(f"  ... and {len(failures) - 20} more")
+        raise SystemExit(
+            f"\n{len(failures)} float(s) produced no features, so those candidates carry no score "
+            f"and would never be drawn. Nothing else written.")
     if a.limit_floats:
-        print("dry run; manifest not written")
+        print("dry run; provenance not written")
         return
     MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
     man = {
         "study_id": study.study_id,
         "built": _dt.datetime.now().isoformat(timespec="seconds"),
-        "cache": {"path": str(study.cache.path), "fine_grids": study.cache.fine_grids,
-                  "fine_grids_sha256": study.cache.fine_grids_sha256},
+        "cache": {"path": str(cache_dir), "fine_grids": live.fine_grids,
+                  "fine_grids_sha256": live.fine_grids_sha256},
         "pools": records,
     }
     (MANIFEST_DIR / "FEATURES_SHA256").write_text(
-        "# provenance of the study's candidate feature tables -- built by pipeline/features.py; do not edit\n"
+        "# provenance of the study's candidate feature tables -- built by pipeline/features.py; do not edit."
+        " The cache block is counted off the grids this run read, not copied from CACHE_IDENTITY.json.\n"
         + json.dumps(man, indent=2) + "\n")
-    print(f"manifest -> {MANIFEST_DIR / 'FEATURES_SHA256'}")
+    print(f"provenance -> {MANIFEST_DIR / 'FEATURES_SHA256'}")
 
 
 if __name__ == "__main__":

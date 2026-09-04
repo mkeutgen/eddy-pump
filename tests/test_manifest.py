@@ -1,48 +1,42 @@
 """The active domain layer: one manifest, six pools, and the two invariants the study rests on.
 
-reads  config/events.yaml, data/candidates/net_carbon_v1/CACHE_IDENTITY.json, and — for the equivalence
-       check only — src/obduction/event_configs.py and the six paper-line root YAMLs
+reads  config/events.yaml, data/candidates/net_carbon_v1/CACHE_IDENTITY.json
 writes nothing
-Plan item: docs/DECISIONS.md §0 Phase 1; docs/PLAN.md acceptance gate 2 ("six pools from one manifest; each child is its directional parent plus one tracer term" —
-       children are subsets of their own directional parents")
-Phase: tests
 
-SIX THINGS CAN GO WRONG SILENTLY HERE, and each has a test below.
+Six things can go wrong silently here, and each has a test below.
 
-1. THE MANIFEST STOPS REPRODUCING THE AUTHORITY IT REPLACED. Phase 1's entire claim is "no
-   behaviour change": `config/events.yaml` must load into exactly the six specs that
-   `src/obduction/event_configs.py` already runs and that produced the frozen tables in
-   `data/candidates/paper/`. A manifest that is merely *plausible* would silently re-cut every
-   pool the first time Phase 2 detects from it. Asserted field-for-field against BOTH the module
-   and the six paper YAMLs.
+1. The manifest stops describing the detectors that produced the saved lists. `config/events.yaml`
+   is the one source now, so it must load into exactly the six specs whose ids the saved candidate
+   lists were written under. A manifest that is merely *plausible* would silently re-cut every pool
+   the first time anything detected from it. Held by the six pinned `spec_id`s.
 
-2. THE TWO PHYSICAL PARENTS DRIFT APART. The apples-to-apples claim of the whole net-carbon
-   paper is that gross subduction and obduction return are measured by ONE instrument and a sign.
-   A cutoff that moves on one limb only turns the difference of two censuses into the difference
-   of two detectors, and nothing downstream says so.
+2. The two physical parents drift apart. The apples-to-apples claim of the whole net-carbon paper
+   is that gross subduction and obduction return are measured by one instrument and a sign. A
+   cutoff that moves on one limb only turns the difference of two censuses into the difference of
+   two detectors, and nothing downstream says so.
 
-3. A CHILD STOPS BEING ITS PARENT PLUS ONE TERM, so it cannot nest. That is not hypothetical: the
+3. A child stops being its parent plus one term, so it cannot nest. That is not hypothetical: the
    superseded `carbon_subduction` (ABS_SAL 1.2 against the parent's 1.50) admitted 273 levels with
-   no `physical_subduction` parent at all. The assertion is on the SPEC, before any detection.
+   no `physical_subduction` parent at all. The assertion is on the spec, before any detection.
 
-4. TWO POOLS COLLIDE ON A KEY. The legacy key `(WMO, CYCLE, round(PRES), EVENT_TYPE)` is ambiguous
-   between the limbs and between the lines, which is why the adapter had to smuggle the line into
-   EVENT_TYPE as `physical_obduction_paper`. `pool_id` and `candidate_id` exist to end that, so
-   they are tested for distinctness and — the part that actually bites — for STABILITY.
+4. Two pools collide on a key. The older key `(WMO, CYCLE, round(PRES), EVENT_TYPE)` is ambiguous
+   between the limbs and between the studies, which is why the event type used to have to carry
+   the study in it. `pool_id` and `candidate_id` exist to end that, so they are tested for
+   distinctness and — the part that actually bites — for staying the same run after run.
 
-5. AN ID MOVES BETWEEN PROCESSES. Python's builtin `hash()` is salted per interpreter, so an id
+5. An id moves between processes. Python's builtin `hash()` is salted per interpreter, so an id
    built with it differs on every run and no label can ever be joined back to its candidate. The
-   candidate-id test asserts a literal digest AND re-computes it in two subprocesses under
+   candidate-id test asserts a literal digest and re-computes it in two subprocesses under
    different PYTHONHASHSEEDs.
 
-6. AN ID MOVES BECAUSE THE UPSTREAM LIBRARY GREW A FIELD. It did: argopod added nine knobs this
+6. An id moves because the upstream library grew a field. It did: argopod added nine knobs this
    study does not use, and because `spec_id` digested `dataclasses.asdict()` of argopod's own
-   dataclasses, all six pins moved with not one cutoff, sign or detector knob changed. The digest
-   now covers an EXPLICIT list owned by this repository
+   dataclasses, all six ids moved with not one cutoff, sign or detector knob changed. The digest
+   now covers an explicit list owned by this repository
    (`eddy_pump.domain.DECLARED_VARIABLE_FIELDS` / `DECLARED_PARAM_FIELDS`). Section 8 tests both
-   halves of that: a grown upstream field must NOT move an id, and a field added to the declared
-   list MUST — plus the case that makes selecting fields safe rather than merely convenient, a
-   spec that SETS an undeclared field being refused by name instead of hashed around.
+   halves of that: a grown upstream field must not move an id, and a field added to the declared
+   list must — plus the case that makes selecting fields safe rather than merely convenient, a
+   spec that sets an undeclared field being refused by name instead of hashed around.
 """
 import dataclasses
 import os
@@ -85,9 +79,6 @@ EXPECTED_POOL_IDS = (
     "net_carbon_v1/carbon/subduction",
 )
 
-#: pool_id -> the paper-line root YAML that declares the same detector today. The equivalence
-#: check in test 1 runs against these as well as against the module, because they are the two
-#: authorities the manifest replaces.
 
 @pytest.fixture(scope="module")
 def study():
@@ -95,7 +86,7 @@ def study():
 
 
 # --------------------------------------------------------------------------- #
-# 0. the manifest loads, and it is the ONE source
+# 0. the manifest loads, and it is the one source
 # --------------------------------------------------------------------------- #
 def test_the_manifest_is_where_the_plan_says_it_is():
     assert MANIFEST_PATH == REPO_ROOT / "config" / "events.yaml"
@@ -115,7 +106,7 @@ def test_the_manifest_produces_exactly_six_detector_configurations(study):
 
 
 def test_the_study_is_bound_to_the_fleet_cache_it_names(study):
-    """The identity is READ from CACHE_IDENTITY.json, never retyped into the manifest."""
+    """The identity is read from CACHE_IDENTITY.json, never retyped into the manifest."""
     assert study.study_id == STUDY_ID
     binding = REPO_ROOT / "data" / "candidates" / "net_carbon_v1" / "CACHE_IDENTITY.json"
     assert study.cache.source == binding
@@ -127,8 +118,42 @@ def test_the_study_is_bound_to_the_fleet_cache_it_names(study):
     assert not study.cache.matches({"fine_grids": 721, "fine_grids_sha256": "0" * 64})
 
 
+def test_this_machine_says_where_the_cache_is_and_the_fingerprint_still_decides(monkeypatch, tmp_path):
+    """`CACHE_IDENTITY.json` records the absolute path of the machine the cache was built on,
+    which is nobody else's path. `$EDDY_PUMP_CACHE` says where the same cache is here.
+
+    It moves the path and nothing else. The fingerprint is what decides whether the grids are the
+    right grids, so pointing this at the wrong directory fails loudly rather than quietly detecting
+    something else — which is the whole reason a co-developer may be trusted to set it.
+    """
+    from eddy_pump import candidates as C
+    from eddy_pump.study import CACHE_DIR_ENV
+
+    monkeypatch.delenv(CACHE_DIR_ENV, raising=False)
+    recorded = load_manifest().cache
+    assert recorded.path == recorded.recorded_path   # nothing set: the recorded path stands
+
+    here = tmp_path / "residual_cache_v4"
+    here.mkdir()
+    monkeypatch.setenv(CACHE_DIR_ENV, str(here))
+    moved = load_manifest().cache
+    assert moved.path == here                        # the grids are read from here
+    assert moved.recorded_path == recorded.recorded_path != here   # provenance still names there
+    assert (moved.fine_grids, moved.fine_grids_sha256) == (recorded.fine_grids,
+                                                           recorded.fine_grids_sha256)
+    # and the fingerprint is still checked: an empty directory is not the cache, wherever it is
+    with pytest.raises(ValueError, match="not the one .* is bound to"):
+        C.require_bound_cache(load_manifest())
+
+    monkeypatch.setenv(CACHE_DIR_ENV, "~/eddy-pump-cache/residual_cache_v4")
+    assert load_manifest().cache.path == pathlib.Path.home() / "eddy-pump-cache/residual_cache_v4"
+
+    monkeypatch.setenv(CACHE_DIR_ENV, "   ")         # set but empty says nothing
+    assert load_manifest().cache.path == recorded.recorded_path
+
+
 def test_the_active_study_never_writes_into_the_letters_tree(study):
-    """PLAN §5, Phase 5. 33 reference checksums are pinned under results/obduction/."""
+    """The retired output trees are read-only: the active study writes only under its own root."""
     assert study.output.root == REPO_ROOT / "results" / "net_carbon_v1"
     assert study.output.resolve("candidates", "x.parquet").is_relative_to(study.output.root)
 
@@ -136,20 +161,20 @@ def test_the_active_study_never_writes_into_the_letters_tree(study):
     with pytest.raises(ValueError, match="escapes the study's output root"):
         study.output.resolve("..", "obduction", "catalogue.csv")
 
-    # rule 2: and even a path INSIDE a permissive root is refused when it lands in the frozen
+    # rule 2: and even a path inside a permissive root is refused when it lands in the retired
     # tree. Exercised with a root wide enough for the escape check to pass, so the second rule
     # is the one under test rather than the first.
     wide = OutputRootPolicy(root=REPO_ROOT / "results",
                             forbidden_roots=study.output.forbidden_roots)
     assert wide.resolve("net_carbon_v1", "candidates").name == "candidates"
-    with pytest.raises(ValueError, match="frozen legacy output"):
+    with pytest.raises(ValueError, match="a retired output tree"):
         wide.resolve("obduction", "catalogue.csv")
     assert (REPO_ROOT / "results" / "obduction").resolve() in {
         p.resolve() for p in study.output.forbidden_roots}
 
 
 # --------------------------------------------------------------------------- #
-# 1. the manifest reproduces the authority it replaces — the Phase 1 claim
+# 1. the one detector knob this study moves, and no other
 # --------------------------------------------------------------------------- #
 
 def test_the_paper_setting_is_the_only_knob_the_study_moves(study):
@@ -159,10 +184,10 @@ def test_the_paper_setting_is_the_only_knob_the_study_moves(study):
 
 
 # --------------------------------------------------------------------------- #
-# 2. DIRECTIONAL SYMMETRY
+# 2. the two limbs are one instrument and a sign
 # --------------------------------------------------------------------------- #
 def test_the_two_physical_parents_differ_only_in_the_aou_sign(study):
-    """One instrument and a sign. Asserted by STRIPPING the signs and demanding identity, so a
+    """One instrument and a sign. Asserted by stripping the signs and demanding identity, so a
     cutoff, a gradient check, a valid_range or a channel that moved on one limb only shows up."""
     up = study.pool("physical", Direction.OBDUCTION).spec
     down = study.pool("physical", Direction.SUBDUCTION).spec
@@ -374,13 +399,13 @@ def test_a_malformed_pool_id_is_refused_at_construction():
 # --------------------------------------------------------------------------- #
 # 6. spec_id — moves when the spec moves, and only then
 # --------------------------------------------------------------------------- #
-#: The six frozen pins, as `config/events.yaml` declares them. The loader already refuses a
+#: The six pinned ids, as `config/events.yaml` declares them. The loader already refuses a
 #: manifest whose pin disagrees with its content; these literals name the values so a re-pin is
 #: a visible edit in a diff rather than a number nobody wrote down.
 #:
-#: RE-PINNED 2026-08-25 BY THE PLAUSIBLE-RANGE RULING, all six at once, and the previous values are
-#: kept below so the move is readable rather than merely asserted. Two causes, both deliberate:
-#: `range_policy` and `range_tolerance` joined `DECLARED_VARIABLE_FIELDS` (this study now SETS
+#: Re-pinned 2026-08-25 by the plausible-range ruling, all six at once, and the previous values
+#: are kept below so the move is readable rather than merely asserted. Two causes, both deliberate:
+#: `range_policy` and `range_tolerance` joined `DECLARED_VARIABLE_FIELDS` (this study now sets
 #: them), and AOU — a channel of all six specs — gained the `valid_range` it never had. No cutoff,
 #: sign constraint, gradient flag or detector knob moved.
 SPEC_IDS_BEFORE_THE_RANGE_RULING = {
@@ -456,7 +481,7 @@ def test_all_six_ids_moved_with_the_range_ruling_and_none_stayed_behind(study):
 
 
 def test_the_ruling_moved_the_ranges_and_left_every_detect_time_gate_alone(study):
-    """WHAT MOVED AND WHAT DID NOT, field by field — the claim the re-pin is justified by.
+    """What moved and what did not, field by field — the claim the re-pin is justified by.
 
     Every channel of every pool must still carry exactly the cutoff, sign constraint, gradient
     check and second-derivative threshold it had before the ruling. If one of those moved, the
@@ -637,21 +662,21 @@ def _manifest_copy(tmp_path: pathlib.Path, text: str) -> pathlib.Path:
 
 
 # --------------------------------------------------------------------------- #
-# 8. spec_id covers a DECLARED field list owned here, not argopod's inventory
+# 8. spec_id covers a declared field list owned here, not argopod's inventory
 # --------------------------------------------------------------------------- #
-# THE INCIDENT. `EventSpec.content` used to digest `dataclasses.asdict()` of argopod's
+# What happened. `EventSpec.content` used to digest `dataclasses.asdict()` of argopod's
 # `VariableConfig` and `DetectionParams`. argopod then grew nine fields this study neither sets
 # nor needs — `range_policy`, `range_tolerance`, `range_tolerance_fraction`,
 # `artifact_cycle_fraction` on VariableConfig; `fill_policy`, `fill_values`, `fill_abs_min`,
-# `fill_columns`, `fill_warn` on DetectionParams — and ALL SIX PINS MOVED AT ONCE. Nothing
+# `fill_columns`, `fill_warn` on DetectionParams — and all six ids moved at once. Nothing
 # scientific had changed. A `spec_id` that churns on somebody else's release note cannot be what
-# a label, an anchor, a catalogue and a flux are keyed to, so the digest now covers a list this
+# a label, a saved list, a catalogue and a flux are keyed to, so the digest now covers a list this
 # repository declares. These tests hold that fix to all four of its promises.
 
 
 @dataclasses.dataclass(frozen=True)
 class _GrownVariableConfig(VariableConfig):
-    """argopod's VariableConfig with one more field, simulated WITHOUT touching argopod.
+    """argopod's VariableConfig with one more field, simulated without touching argopod.
 
     A hand-written subclass is the honest simulation: the nine real fields all arrived with
     defaults and this study leaves every one of them alone, which is precisely the case that used
@@ -756,7 +781,7 @@ def test_the_two_promoted_fields_are_declared_and_the_study_really_sets_them(stu
 
 
 def test_a_field_argopod_grows_does_not_move_one_spec_id(study):
-    """THE BUG, as a test. Widen both upstream dataclasses, set nothing new, and every id holds.
+    """The bug, as a test. Widen both upstream dataclasses, set nothing new, and every id holds.
 
     Under the old `dataclasses.asdict()` digest this failed on all six pools at once — which is
     exactly what happened when the nine real fields landed.
@@ -796,7 +821,7 @@ def test_adding_a_field_to_the_declared_list_does_move_the_spec_id(monkeypatch, 
 
 
 def test_a_spec_that_sets_an_undeclared_field_is_refused_by_name(study):
-    """THE CASE THAT MAKES SELECTING FIELDS SAFE RATHER THAN MERELY CONVENIENT.
+    """The case that makes selecting fields safe rather than merely convenient.
 
     A list that only SELECTED fields would be worse than the bug it replaces: a spec could set an
     undeclared knob, detect differently, and hash identically to one that does not — the manifest
@@ -831,12 +856,12 @@ def test_a_spec_that_sets_an_undeclared_field_is_refused_by_name(study):
 def _an_undeclared_upstream_field(cls, declared):
     """One real argopod field this repository does not declare, with a value != its default.
 
-    Chosen from the live dataclass rather than hardcoded, so the test states the RULE and does not
+    Chosen from the live dataclass rather than hardcoded, so the test states the rule and does not
     quietly pass the day argopod renames a field.
 
-    IT ACCEPTS A NUMERIC DEFAULT AS WELL AS A STRING, and it has to. Until 2026-08-25 the first
+    It accepts a numeric default as well as a string, and it has to. Until 2026-08-25 the first
     undeclared string-valued `VariableConfig` field was `range_policy`; the range ruling declared
-    it, and a string-only search then found nothing and SKIPPED the test — silently retiring the
+    it, and a string-only search then found nothing and skipped the test — silently retiring the
     check that the loader refuses an undeclared field. `range_tolerance_fraction` (a float, 0.02)
     keeps it running.
     """

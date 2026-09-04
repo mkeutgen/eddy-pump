@@ -1,11 +1,12 @@
-"""Detect the study's six candidate pools from the bound cache; verify or write the saved lists.
+"""Detect the study's six candidate pools from the cache; check or write the saved lists.
 
-reads  config/events.yaml, the bound cache's per-float residual grids
+reads  config/events.yaml, the cache's per-float residual grids
 writes --write : data/candidates/net_carbon_v1/<event_type>.parquet (+ .json), CANDIDATES.json — `make freeze-candidates`
        --verify: nothing; re-detects and compares each pool's key set with its saved list, exits 1 on
-                 anything but EXACT — `make verify-candidates`, about six minutes per pool
-The live cache must match the identity the study is bound to; a child pool is never detected without
-its directional parent.
+                 anything but an exact match — `make verify-candidates`, about six minutes per pool
+The cache on disk must carry the fingerprint the study's saved lists were built from; a child pool
+is never detected without its directional parent; a float whose grids will not open, or whose
+detection raises, is counted and named, and the run stops rather than write a short list.
 """
 from __future__ import annotations
 
@@ -26,8 +27,8 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     mode = ap.add_mutually_exclusive_group(required=True)
     mode.add_argument("--write", action="store_true", help="write the saved lists and CANDIDATES.json")
-    mode.add_argument("--verify", "--anchor", dest="verify", action="store_true",
-                      help="verify only; write nothing")
+    mode.add_argument("--verify", dest="verify", action="store_true",
+                      help="check only; write nothing")
     ap.add_argument("--pools", nargs="*", default=None, help="channel/direction, default all six")
     a = ap.parse_args()
     study = load_manifest()
@@ -36,9 +37,11 @@ def main() -> None:
         want = set(a.pools)
         pools = [p for p in pools if f"{p.channel}/{p.direction.value}" in want]
     live = C.require_bound_cache(study)
-    print(f"{study.study_id}: cache {live.path} ({live.fine_grids} fine grids, {live.fine_grids_sha256[:16]}…) matches the binding")
+    print(f"{study.study_id}: cache {study.cache.path} ({live.fine_grids} fine grids, "
+          f"{live.fine_grids_sha256[:16]}…) is the one the saved lists were built from")
     t0 = time.time()
-    tables = C.detect_study(study, pools)
+    failures: list[C.GridFailure] = []
+    tables = C.detect_study(study, pools, failures=failures)
     print(f"detected {len(tables)} pools in {time.time() - t0:.0f} s")
 
     bad, report = [], []
@@ -54,6 +57,20 @@ def main() -> None:
                 bad.append(p.pool_id)
         report.append(line)
         print("  " + json.dumps(line))
+    if failures:
+        by_pool = {}
+        for fail in failures:
+            by_pool.setdefault(fail.pool_id, []).append(fail)
+        print(f"\n{len(failures)} float(s) contributed nothing:")
+        for pool_id in sorted(by_pool):
+            for fail in by_pool[pool_id][:10]:
+                print(f"  {fail}")
+            if len(by_pool[pool_id]) > 10:
+                print(f"  ... and {len(by_pool[pool_id]) - 10} more in {pool_id}")
+        raise SystemExit(
+            "\nthose floats are absent from the pools named, so those counts are short by whatever "
+            "they hold. Nothing written. Put the cache right (scripts/fetch_caches.sh) and run "
+            "again.")
     if bad:
         raise SystemExit(f"\nthe saved lists do not reproduce: {sorted(set(bad))}. Nothing written.")
     if a.verify:

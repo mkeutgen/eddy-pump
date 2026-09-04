@@ -12,9 +12,9 @@ Three things this does:
   --verify read a built cache back and say whether it can be trusted
   --check  rebuild a few named floats and compare every grid byte for byte with the bound cache
 
-A build never targets the cache the saved candidate lists are bound to: rewriting those grids
-would move the fingerprint every frozen number stands on, so the run is refused. Build somewhere
-new and compare.
+A build never targets the cache the saved candidate lists stand on: rewriting those grids would
+move the fingerprint every published number is keyed to, so the run is refused. Build somewhere new
+and compare.
 
 A float with no staged raw frame is downloaded. ARGOPOD_SKIP_ERDDAP=1 makes those downloads go
 straight to the GDAC files instead of trying the ERDDAP endpoint first, which saves minutes per
@@ -58,8 +58,8 @@ def _refuse_the_bound_cache(out: pathlib.Path, bound: pathlib.Path) -> None:
     if out.resolve() == bound.resolve():
         raise SystemExit(
             f"refusing to build into {out}\n"
-            f"That is the cache the saved candidate lists are bound to. Rebuilding it in place "
-            f"would move its fingerprint, and every frozen number is keyed to that fingerprint. "
+            f"That is the cache the saved candidate lists stand on. Rebuilding it in place "
+            f"would move its fingerprint, and every published number is keyed to it. "
             f"Build into a new directory and compare the two with --check.")
 
 

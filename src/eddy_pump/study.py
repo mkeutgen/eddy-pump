@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,6 +19,8 @@ from .spec import CandidatePool
 from .vocabulary import Direction, Tracer, channel_of
 
 __all__ = [
+    "CACHE_DIR_ENV",
+    "cache_dir_override",
     "CacheIdentity",
     "CacheBuild",
     "OutputRootPolicy",
@@ -26,14 +29,31 @@ __all__ = [
     "Study",
 ]
 
+#: Where the fleet cache is on THIS machine. The identity file records the absolute path of the
+#: machine the cache was built on, which is nobody else's path; setting this environment variable
+#: says where the same cache lives here. It moves the path only — the fingerprint (the grid count
+#: and the sha256 of the grid names) still decides whether it is the right cache, so pointing this
+#: at the wrong directory fails loudly rather than quietly detecting something else.
+#: `scripts/fetch_caches.sh` prints the line to export.
+CACHE_DIR_ENV = "EDDY_PUMP_CACHE"
+
+
+def cache_dir_override() -> Path | None:
+    """The cache directory this machine declares, or ``None`` when it declares none."""
+    value = os.environ.get(CACHE_DIR_ENV, "").strip()
+    return Path(value).expanduser() if value else None
+
 
 @dataclass(frozen=True)
 class CacheIdentity:
-    """WHICH residual cache a study's frozen keys were built from.
+    """Which residual cache a study's saved keys were built from.
 
-    Read from a `CACHE_IDENTITY.json` written by the legacy adapter
-    (`obduction.detect_all.write_cache_binding`). The fingerprint is the count of
-    `*_fine.parquet` grids and the sha256 of their sorted names.
+    Read from a `CACHE_IDENTITY.json` written when the lists were saved. The fingerprint is the
+    count of `*_fine.parquet` grids and the sha256 of their sorted names.
+
+    :attr:`path` is where to read the grids on this machine: the directory `$EDDY_PUMP_CACHE`
+    names when it is set, otherwise the one the file recorded. :attr:`recorded_path` keeps what
+    the file said either way, so provenance still names the machine the cache was built on.
     """
 
     path: Path
@@ -43,6 +63,7 @@ class CacheIdentity:
     argopod: str | None = None
     line: str | None = None
     source: Path | None = None
+    recorded_path: Path | None = None
 
     @classmethod
     def from_json(cls, path: str | Path) -> CacheIdentity:
@@ -55,18 +76,21 @@ class CacheIdentity:
         missing = [k for k in ("path", "fine_grids", "fine_grids_sha256") if k not in cache]
         if missing:
             raise ValueError(f"{path}: cache block is missing {missing}")
+        recorded = Path(str(cache["path"]))
+        here = cache_dir_override()
         return cls(
-            path=Path(str(cache["path"])),
+            path=here if here is not None else recorded,
             fine_grids=int(cache["fine_grids"]),
             fine_grids_sha256=str(cache["fine_grids_sha256"]),
             bound=raw.get("bound"),
             argopod=raw.get("argopod"),
             line=raw.get("line"),
             source=path,
+            recorded_path=recorded,
         )
 
     def matches(self, other: CacheIdentity | dict) -> bool:
-        """True when the two fingerprints describe the same cache CONTENT, path ignored."""
+        """True when the two fingerprints describe the same cache content, path ignored."""
         if isinstance(other, CacheIdentity):
             other = {"fine_grids": other.fine_grids,
                      "fine_grids_sha256": other.fine_grids_sha256}
@@ -76,7 +100,7 @@ class CacheIdentity:
 
 @dataclass(frozen=True)
 class CacheBuild:
-    """HOW the fleet cache is built — the half of the recipe that is a science choice.
+    """How the fleet cache is built — the half of the recipe that is a science choice.
 
     Read from the `cache:` block of `config/events.yaml`. The other half is already written down
     elsewhere in the same file — the plausible ranges (`raw_inputs:` and each channel's
@@ -85,9 +109,9 @@ class CacheBuild:
 
     Fields
     ------
-    labels
-        Grid flavour -> the channels that grid carries, in order. A float earns the richest
-        flavour its data fits, and the flavour names its two files.
+    grid_kinds
+        Grid kind -> the channels that grid carries, in order. A float earns the richest
+        grid kind its data fits, and the grid kind names its two files.
     window
         `(since, until)` ISO dates. A profile outside them is dropped; both ends are kept.
     fill_policy
@@ -99,20 +123,20 @@ class CacheBuild:
         channel is reported but not checked.
     """
 
-    labels: Mapping[str, tuple[str, ...]]
+    grid_kinds: Mapping[str, tuple[str, ...]]
     window: tuple[str | None, str | None] = (None, None)
     fill_policy: str = "mask"
     adjusted_fallback: str = "cycle"
     residual_ceilings: Mapping[str, float | None] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        labels = {str(k): tuple(str(c) for c in v) for k, v in dict(self.labels).items()}
-        if not labels:
-            raise ValueError("the cache block declares no grid flavours")
-        for name, channels in labels.items():
+        kinds = {str(k): tuple(str(c) for c in v) for k, v in dict(self.grid_kinds).items()}
+        if not kinds:
+            raise ValueError("the cache block declares no grid kinds")
+        for name, channels in kinds.items():
             if not channels:
-                raise ValueError(f"cache flavour {name!r} declares no channels")
-        object.__setattr__(self, "labels", labels)
+                raise ValueError(f"cache grid kind {name!r} declares no channels")
+        object.__setattr__(self, "grid_kinds", kinds)
         since, until = tuple(self.window)
         object.__setattr__(self, "window", (
             None if since is None else str(since), None if until is None else str(until)))
@@ -122,9 +146,9 @@ class CacheBuild:
 
     @property
     def channels(self) -> tuple[str, ...]:
-        """Every channel any flavour carries, in declaration order, each once."""
+        """Every channel any grid kind carries, in declaration order, each once."""
         seen: dict[str, None] = {}
-        for channels in self.labels.values():
+        for channels in self.grid_kinds.values():
             for name in channels:
                 seen.setdefault(name, None)
         return tuple(seen)
@@ -134,8 +158,8 @@ class CacheBuild:
 class OutputRootPolicy:
     """Where a study may write, and — louder — where it may not.
 
-    :meth:`resolve` is the ONLY sanctioned way to name an output path. It refuses anything that
-    escapes :attr:`root` (a ``..`` in the parts) and anything that lands inside a forbidden root.
+    :meth:`resolve` is the one way to name an output path. It refuses anything that escapes
+    :attr:`root` (a ``..`` in the parts) and anything that lands inside a forbidden root.
     """
 
     root: Path
@@ -158,8 +182,8 @@ class OutputRootPolicy:
             f = forbidden.resolve()
             if out == f or out.is_relative_to(f):
                 raise ValueError(
-                    f"{out} is inside {f}, which is frozen legacy output — the active study "
-                    f"never writes there")
+                    f"{out} is inside {f}, a retired output tree the active study never writes "
+                    f"into")
         return out
 
 
@@ -230,10 +254,10 @@ class Study:
     params: DetectionParams
     manifest_path: Path | None = None
     #: Plausible ranges on RAW columns that are not detection channels of any pool — today
-    #: `DOXY_ADJUSTED`. NOT spec content and in no `spec_id`: they are pinned by the cache
-    #: identity instead. See `config/events.yaml`, the `raw_inputs:` block.
+    #: `DOXY_ADJUSTED`. Not spec content and in no `spec_id`: the cache identity is what holds
+    #: them still instead. See `config/events.yaml`, the `raw_inputs:` block.
     input_ranges: tuple[VariableConfig, ...] = ()
-    #: Floats declared out of the study, with a reason and a date each. NOT spec content and in
+    #: Floats declared out of the study, with a reason and a date each. Not spec content and in
     #: no `spec_id`, for the same reason as :attr:`input_ranges`. See `config/events.yaml`, the
     #: `excluded_floats:` block.
     excluded_floats: tuple[ExcludedFloat, ...] = ()
@@ -305,7 +329,7 @@ class Study:
     def channel_ranges(self, *, surgical_only: bool = True) -> tuple[VariableConfig, ...]:
         """Every DETECTION channel of every pool that declares a `valid_range`, de-duplicated.
 
-        Each entry is a RANGE CARRIER, not the spec's channel: it keeps the name and the four
+        Each entry carries a range and nothing else, not the spec's channel: it keeps the name and the four
         range fields and drops `cutoff`, `sign_constraint`, `require_gradient_check` and
         `pre_median_filter`. A channel that appears in more than one pool must declare the same
         range in all of them or this raises.
@@ -339,7 +363,7 @@ class Study:
     def cache_build_ranges(self) -> dict[str, tuple[VariableConfig, ...]]:
         """The two lists a cache build needs, keyed by WHEN they run.
 
-        ``"raw"``      applied to the raw frame, BEFORE `compute_derived_variables`.
+        ``"raw"``      applied to the raw frame, before `compute_derived_variables`.
         ``"derived"``  applied after derivation and before `downscale`, on the detection channels.
         """
         return {"raw": self.input_ranges, "derived": self.channel_ranges()}
@@ -348,15 +372,16 @@ class Study:
         """The whole fleet-cache recipe, as the `argopod.cache.CachePolicy` a build consumes.
 
         Four things are joined here, each from the one place it is written down: the grid
-        flavours, the dates, the placeholder rule and the check ceilings from the `cache:` block;
+        grid kinds, the dates, the placeholder rule and the check ceilings from the `cache:` block;
         the plausible ranges from `raw_inputs:` and the channels' own `prefilter:` blocks; the
         floats left out from `excluded_floats:`; the backscatter smoother from the channel that
         asks for it.
 
-        THE GRID KNOBS ARE ARGOPOD'S DEFAULTS, not :attr:`params`. The frozen cache was built
-        under the defaults, and the one knob this study moves — the local-extremum test — acts at
-        detection time and never touches a grid. Passing the study's block instead would be
-        harmless today and silent damage the day a detection knob starts mattering to a bin.
+        The grid knobs are argopod's defaults, not :attr:`params`. The cache the saved lists
+        stand on was built under the defaults, and the one knob this study moves — the
+        local-extremum test — acts at detection time and never touches a grid. Passing the study's
+        block instead would be harmless today and silent damage the day a detection knob starts
+        mattering to a bin.
         """
         # Local import: nothing but a cache build needs these, so `import eddy_pump` stays cheap.
         from argopod.cache import CachePolicy, Exclusion
@@ -374,7 +399,7 @@ class Study:
             for name in sorted({v.name for p in self.pools for v in p.spec.variables
                                 if v.pre_median_filter}))
         return CachePolicy(
-            labels=dict(build.labels),
+            grid_kinds=dict(build.grid_kinds),
             params=dataclasses.replace(DetectionParams(), fill_policy=build.fill_policy),
             window=build.window,
             raw_ranges=ranges["raw"],

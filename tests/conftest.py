@@ -14,7 +14,7 @@ import pytest
 _ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_ROOT / "src"))
 
-_MISSING_DATA = re.compile(r"run production/|not on this machine|absent|missing|not ingested|not frozen", re.I)
+_MISSING_DATA = re.compile(r"run production/|run pipeline/|not on this machine|absent|missing|not ingested|not frozen", re.I)
 
 
 @pytest.hookimpl(hookwrapper=True)

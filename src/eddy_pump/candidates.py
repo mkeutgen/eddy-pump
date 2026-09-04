@@ -6,6 +6,10 @@ writes data/candidates/<study_id>/<event_type>.parquet, its .json sidecar, CANDI
 Entry points: `detect_study()` (every pool, each nested in its own directional parent),
 `write_saved()` / `read_saved()` for one pool's list, and `verify_saved()`, which compares a
 regenerated table with the saved one and calls anything but an exact key-set match a failure.
+
+Every grid is read in one place, `read_grids()`, through argopod's `CachedProfileProvider`. A read
+that fails, or a detector that raises on a float, is recorded as a `GridFailure` and counted; it is
+never swallowed, because a float silently dropped is a candidate list that is quietly short.
 """
 
 from __future__ import annotations
@@ -16,11 +20,13 @@ import hashlib
 import json
 import re
 import warnings
+from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
 
 from argopod.detect import detect_from_grids
+from argopod.triage.provider import CachedProfileProvider
 
 from .manifest import REPO_ROOT
 from .spec import CandidatePool
@@ -66,6 +72,34 @@ def require_bound_cache(study: Study) -> CacheIdentity:
     return live
 
 
+@dataclass(frozen=True)
+class GridFailure:
+    """One float that did not make it into a pool, and why.
+
+    ``stage`` is ``"read"`` (a grid that would not open) or ``"detect"`` (the detector raised on
+    the grids it was handed). Either way the float contributed nothing, so a run that collects one
+    of these has produced a short list and must say so.
+    """
+
+    pool_id: str
+    wmo: int
+    flavour: str
+    stage: str
+    error: str
+
+    def __str__(self) -> str:
+        return f"{self.pool_id}: float {self.wmo} ({self.flavour}) failed to {self.stage} — {self.error}"
+
+
+def read_grids(cache_dir: Path, wmo: int, flavour: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """The coarse and fine residual grids of one float, the one way this study reads a grid.
+
+    argopod's `CachedProfileProvider` owns the file layout and raises `FileNotFoundError` naming
+    every missing path, so a grid that is not there says which file is not there.
+    """
+    return CachedProfileProvider(cache_dir).get(int(wmo), str(flavour))
+
+
 def _grids(cache_dir: Path) -> dict[str, dict[int, str]]:
     """{flavour: {wmo: flavour}} for every cached coarse+fine pair."""
     out: dict[str, dict[int, str]] = {}
@@ -78,6 +112,21 @@ def _grids(cache_dir: Path) -> dict[str, dict[int, str]]:
     return out
 
 
+def float_flavours(cache_dir: Path, grids=None) -> dict[int, str]:
+    """``{wmo: flavour}`` for every float with both grids in the cache.
+
+    A float is built under one flavour, so this is one entry per float; were a cache ever to hold
+    two flavours for one float, the first in alphabetical order wins and the choice is the same on
+    every machine, which a glob's order is not.
+    """
+    grids = _grids(cache_dir) if grids is None else grids
+    out: dict[int, str] = {}
+    for flavour in sorted(grids):
+        for wmo in grids[flavour]:
+            out.setdefault(int(wmo), flavour)
+    return out
+
+
 def _flavours_for(pool: CandidatePool, cache_dir: Path, grids) -> dict[int, str]:
     """Per float, a grid flavour that carries every channel this pool's spec needs. A spec run
     against a grid missing a channel yields nothing and raises nothing, so this is checked."""
@@ -85,10 +134,7 @@ def _flavours_for(pool: CandidatePool, cache_dir: Path, grids) -> dict[int, str]
     ok: dict[int, str] = {}
     for flavour, wmos in grids.items():
         w0 = next(iter(wmos))
-        try:
-            cols = set(pd.read_parquet(Path(cache_dir) / f"{w0}_{flavour}_coarse.parquet").columns)
-        except Exception:
-            continue
+        cols = set(read_grids(Path(cache_dir), int(w0), flavour)[0].columns)
         if not all(c in cols for c in need):
             continue
         for w in wmos:
@@ -118,19 +164,33 @@ def stamp(pool: CandidatePool, study: Study, df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def detect_pool(pool: CandidatePool, study: Study, grids=None, cache_dir: Path | None = None) -> pd.DataFrame:
-    """Raw detector output for one pool, before nesting. Deduplicated on the key."""
+def detect_pool(pool: CandidatePool, study: Study, grids=None, cache_dir: Path | None = None,
+                failures: list[GridFailure] | None = None) -> pd.DataFrame:
+    """Raw detector output for one pool, before nesting. Deduplicated on the key.
+
+    `failures`, when given, collects a :class:`GridFailure` for every float that did not get as far
+    as the detector's output. The float is still skipped — one bad grid must not sink a six-hour
+    run — but the caller now has the count and can refuse to write a list that is short.
+    """
     cache_dir = Path(study.cache.path if cache_dir is None else cache_dir)
     grids = _grids(cache_dir) if grids is None else grids
     rows = []
     for w, fl in sorted(_flavours_for(pool, cache_dir, grids).items()):
         try:
-            c = pd.read_parquet(cache_dir / f"{w}_{fl}_coarse.parquet")
-            f = pd.read_parquet(cache_dir / f"{w}_{fl}_fine.parquet")
+            c, f = read_grids(cache_dir, int(w), fl)
+        except Exception as exc:
+            if failures is None:
+                raise
+            failures.append(GridFailure(pool.pool_id, int(w), fl, "read", f"{type(exc).__name__}: {exc}"))
+            continue
+        try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", RuntimeWarning)
                 d = detect_from_grids(c, f, list(pool.spec.variables), pool.spec.params)
-        except Exception:
+        except Exception as exc:
+            if failures is None:
+                raise
+            failures.append(GridFailure(pool.pool_id, int(w), fl, "detect", f"{type(exc).__name__}: {exc}"))
             continue
         if len(d):
             rows.append(d.assign(WMO=int(w)))
@@ -145,9 +205,14 @@ def detect_pool(pool: CandidatePool, study: Study, grids=None, cache_dir: Path |
     return stamp(pool, study, out)
 
 
-def detect_study(study: Study, pools: list[CandidatePool] | None = None) -> dict[str, pd.DataFrame]:
+def detect_study(study: Study, pools: list[CandidatePool] | None = None,
+                 failures: list[GridFailure] | None = None) -> dict[str, pd.DataFrame]:
     """Every requested pool, nested in its own directional parent. A child without its parent is
-    refused: the un-nested table would look like a product and be a superset of one."""
+    refused: the un-nested table would look like a product and be a superset of one.
+
+    `failures`, when given, collects every float that could not be read or could not be detected
+    on. The caller decides what a non-empty list means; `pipeline/detect.py` prints it and stops.
+    """
     require_bound_cache(study)
     pools = list(study.pools) if pools is None else list(pools)
     ids = {p.pool_id for p in pools}
@@ -155,7 +220,7 @@ def detect_study(study: Study, pools: list[CandidatePool] | None = None) -> dict
     if orphans:
         raise ValueError(f"children requested without their directional parents: {orphans}")
     grids = _grids(Path(study.cache.path))
-    out = {p.pool_id: detect_pool(p, study, grids) for p in pools}
+    out = {p.pool_id: detect_pool(p, study, grids, failures=failures) for p in pools}
     for p in pools:
         if p.parent is None:
             continue
@@ -207,10 +272,30 @@ def write_saved(study: Study, pool: CandidatePool, table: pd.DataFrame, root: Pa
 
 
 def read_saved(study: Study, pool: CandidatePool, root: Path | None = None,
-               columns: list[str] | None = None) -> tuple[pd.DataFrame, dict]:
-    """One pool's saved list (optionally a column subset) and its sidecar."""
+               columns: list[str] | None = None, verify: bool = False) -> tuple[pd.DataFrame, dict]:
+    """One pool's saved list (optionally a column subset) and its sidecar.
+
+    ``verify=True`` checks the list before handing it over: the key-triple hash must equal the
+    sidecar's ``content_sha256``, the sidecar's spec must be the pool's, and the sidecar's cache
+    block must be the cache the study is bound to. Anything a number is computed from reads with
+    ``verify=True``; a mismatch raises instead of flowing into a rate.
+    """
     path = saved_path(study, pool, root)
-    return pd.read_parquet(path, columns=columns), json.loads(path.with_suffix(".json").read_text())
+    side = json.loads(path.with_suffix(".json").read_text())
+    if not verify:
+        return pd.read_parquet(path, columns=columns), side
+    want = None if columns is None else list(dict.fromkeys(KEYS + list(columns)))
+    table = pd.read_parquet(path, columns=want)
+    if side.get("spec_id") != pool.spec_id:
+        raise ValueError(f"{pool.pool_id}: the saved list was written under spec {side.get('spec_id')}, the pool is {pool.spec_id}")
+    if not study.cache.matches(side["cache"]):
+        raise ValueError(f"{pool.pool_id}: the saved list was written from another cache ({side['cache']['fine_grids_sha256'][:16]}…)")
+    got = content_hash(table)
+    if got != side.get("content_sha256"):
+        raise ValueError(f"{pool.pool_id}: the saved list's keys hash to {got[:16]}…, its sidecar says {str(side.get('content_sha256'))[:16]}…; the file moved")
+    if int(side.get("rows", len(table))) != len(table):
+        raise ValueError(f"{pool.pool_id}: the saved list has {len(table):,} rows, its sidecar says {side.get('rows'):,}")
+    return (table if columns is None else table[list(columns)]), side
 
 
 def verify_saved(study: Study, pool: CandidatePool, table: pd.DataFrame, root: Path | None = None) -> dict:

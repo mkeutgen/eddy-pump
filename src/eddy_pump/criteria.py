@@ -126,6 +126,7 @@ def require_ruled(c: Criterion) -> Criterion:
     if not c.is_ruled:
         raise ValueError(
             f"criterion {c.id!r} is {c.status!r}, not ruled — no batch may be built under it "
-            f"(docs/PLAN.md step 1; config/criteria.yaml)"
+            f"(mark it ruled in config/criteria.yaml; the criterion is decided in docs/DECISIONS.md, "
+            f"'The labels and the numbers')"
         )
     return c

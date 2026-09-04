@@ -1,19 +1,19 @@
-# The review-app configuration for the study's UPWARD rate arm (plan step 6).
+# How the review app draws a panel for the upward limb (physical obduction).
 #
-# `event: paper_phys` is the cache FLAVOUR of the bound fleet cache ({wmo}_paper_phys_*.parquet),
-# so argopod's grids lookup takes exactly that grid and never falls back to another event's.
-# The cache itself is not written here: serve with the bound cache in the environment,
+# `event: paper_phys` is the grid kind in the bound fleet cache ({wmo}_paper_phys_*.parquet), so
+# argopod picks exactly that grid and never falls back to another one. The cache path is not
+# written here; the make rule puts it in the environment:
 #
 #   make review BATCH=results/net_carbon_v1/labeling/rate_obduction_01/rate_obduction_01.csv
 #
 # which exports ARGOPOD_RESIDUAL_CACHE from data/candidates/net_carbon_v1/CACHE_IDENTITY.json.
 #
-# THE PANEL IS PART OF THE CRITERION. `phys_net_carbon_v1` (config/criteria.yaml) shows the two
-# physical channels for a physical pool — AOU and absolute salinity — with the profile, the
+# The panel is part of the criterion. `phys_net_carbon_v1` (config/criteria.yaml) shows the two
+# physical channels of a physical pool — AOU and absolute salinity — with the profile, the
 # pressure-space residual and the density row when the sidecar exists.
 #
-# `paths.candidates` exists only so argopod has a worksheet directory to default to; every study
-# batch is passed explicitly with --batch and lives under results/net_carbon_v1/labeling/.
+# `paths.candidates` exists only so argopod has a worksheet directory to fall back on; every batch
+# of this study is passed explicitly with --batch and lives under results/net_carbon_v1/labeling/.
 
 event: paper_phys
 title: "physical obduction — net_carbon_v1 (AOU positive)"

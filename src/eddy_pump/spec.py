@@ -33,15 +33,15 @@ __all__ = [
 # what `spec_id` covers — the declared field list, owned HERE
 # --------------------------------------------------------------------------- #
 # The digest covers an explicit list of field names, owned by this repository rather than taken
-# from whatever argopod happens to carry. Adding a name below is a deliberate re-pin: it moves
-# the spec_id of every spec the field appears on. A value on a field NOT listed below is refused
-# by name, at EventSpec construction and again in eddy_pump.manifest.
-# The reasoning: docs/DECISIONS.md
+# from whatever argopod happens to carry. Adding a name below moves the spec_id of every spec the
+# field appears on, so it is done on purpose and never by accident. A value on a field not listed
+# below is refused by name, at EventSpec construction and again when config/events.yaml is read.
+# Why: docs/DECISIONS.md
 
-#: The `argopod.VariableConfig` fields that ARE this study's scientific content: the channel's
-#: name, its detect-time gate (cutoff, sign constraint, gradient check, second-derivative
-#: threshold), its build-time prefilter terms (`pre_median_filter`, `valid_range`,
-#: `range_policy`, `range_tolerance`), and `depth_scale`.
+#: The `argopod.VariableConfig` fields that are this study's scientific content: the channel's
+#: name, the test it must pass to be flagged (cutoff, sign constraint, gradient check,
+#: second-derivative threshold), its build-time prefilter terms (`pre_median_filter`,
+#: `valid_range`, `range_policy`, `range_tolerance`), and `depth_scale`.
 #: `range_tolerance_fraction` and `artifact_cycle_fraction` are deliberately absent.
 DECLARED_VARIABLE_FIELDS: tuple[str, ...] = (
     "name",
@@ -56,8 +56,8 @@ DECLARED_VARIABLE_FIELDS: tuple[str, ...] = (
     "depth_scale",
 )
 
-#: The `argopod.DetectionParams` fields that ARE this study's detector — all twenty-two, so the
-#: whole detector setting is pinned and not merely the knobs this study moves off the default.
+#: The `argopod.DetectionParams` fields that are this study's detector — all twenty-two, so the
+#: whole detector setting is recorded, not merely the knobs this study moves off the default.
 DECLARED_PARAM_FIELDS: tuple[str, ...] = (
     "bin_width_fine",
     "bin_width_coarse",
@@ -159,11 +159,11 @@ def _canonical_json(payload: object) -> str:
 @dataclass(frozen=True)
 class EventSpec:
     """One detector: the variables with their cutoffs, signs, gradient checks and ranges,
-    plus the global detector knobs, plus the content-derived `spec_id` that pins both.
+    plus the global detector knobs, plus the content-derived `spec_id` that names both.
 
     ``variables`` and ``params`` are argopod's own types (:class:`argopod.VariableConfig`,
-    :class:`argopod.DetectionParams`), so a spec loaded from the manifest can be handed straight
-    to ``argopod.detect`` with nothing in between. `spec_id` is a function of the detector
+    :class:`argopod.DetectionParams`), so a spec read out of config/events.yaml can be handed
+    straight to ``argopod.detect`` with nothing in between. `spec_id` is a function of the detector
     content alone: two pools declaring the same detector get the same `spec_id`.
     """
 
@@ -184,7 +184,7 @@ class EventSpec:
         if not self.version:
             raise ValueError(f"{self.name}: spec_id must be versioned; got an empty version")
         # a spec may not set a field the digest cannot see — checked here as well as in the
-        # loader, so a spec built in Python is held to the same contract as the manifest
+        # loader, so a spec built in Python obeys the same rule as one read out of the YAML
         for v in self.variables:
             _refuse_undeclared(v, DECLARED_VARIABLE_FIELDS, "DECLARED_VARIABLE_FIELDS",
                                f"{self.name}: channel {v.name!r}")
@@ -199,7 +199,7 @@ class EventSpec:
 
     @property
     def declared_order(self) -> tuple[str, ...]:
-        """The order the manifest declares the channels in — PRESENTATION, never identity.
+        """The order config/events.yaml declares the channels in. For display, never identity.
 
         It travels into `PROVENANCE.json` and the CLI's triage feature list, and is deliberately
         excluded from :attr:`content_digest`. The reasoning: docs/DECISIONS.md
@@ -260,7 +260,7 @@ class EventSpec:
 
     @property
     def spec_id(self) -> str:
-        """``{version}:{16 hex}`` — the versioned, content-derived spec pin."""
+        """``{version}:{16 hex}`` — the pool's id, derived from the detector content itself."""
         return f"{self.version}:{self.content_digest[:16]}"
 
 
@@ -350,8 +350,8 @@ class CandidatePool:
 # --------------------------------------------------------------------------- #
 # the candidate key
 # --------------------------------------------------------------------------- #
-#: Decimals `PRES_ADJUSTED` is rounded to before it enters an id. Zero, matching the legacy dedup
-#: rule (`obduction.config.HIERARCHY_KEY_PRES_DECIMALS`).
+#: Decimals `PRES_ADJUSTED` is rounded to before it enters an id. Zero: one candidate per whole
+#: decibar, which is the level the event key counts.
 PRES_DECIMALS = 0
 
 #: Hex characters of the candidate sha256 kept. 32 is 128 bits.
@@ -415,7 +415,7 @@ class CandidateKey:
 
     @property
     def pres_rounded(self) -> int:
-        """``round(PRES_ADJUSTED)``, half-to-even — the same rule the legacy dedup key uses."""
+        """``round(PRES_ADJUSTED)``, half-to-even: one candidate per whole decibar."""
         return int(round(self.pres_adjusted, PRES_DECIMALS))
 
     @property

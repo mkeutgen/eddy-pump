@@ -4,26 +4,27 @@ version = "0.1.0"
 description = "Water-mass injection events (submesoscale eddy-pump obduction/subduction) — the science application layer on argopod"
 requires-python = ">=3.11"
 dependencies = [
-    # the generic detect -> review -> triage pipeline, with the extras the
-    # `argopod` CLI workflow uses: [cli] (YAML config), [ml] (triage/catalogue),
-    # [review] (the keyboard labeling app + diagnostic panels).
+    # the generic detect -> review -> triage library, with the extras this repo's
+    # workflow uses: [cli] (YAML config), [ml] (triage/catalogue), [review] (the
+    # keyboard labelling app and its panels).
     #
-    # argopod is NOT on PyPI, so the bare name resolves nowhere: pin the git tag.
-    # Replace this with a plain PyPI pin ("argopod[cli,ml,review]>=0.4.0") if and
-    # when argopod is published there.  Building against a local argopod checkout
-    # instead?  pip re-clones a direct URL even when a matching argopod is already
-    # installed, so use the documented second path: install `../argopod[all,dev]`
-    # and then this repo with --no-deps (README "Reproduce it").
-    "argopod[cli,ml,review] @ git+https://github.com/mkeutgen/argopod@v0.5.1",
+    # argopod is not on PyPI, so the bare name resolves nowhere and the git tag is
+    # named directly.  Replace this with a plain PyPI requirement
+    # ("argopod[cli,ml,review]>=0.5.2") if and when argopod is published there.
+    # Building against a local argopod checkout instead?  pip re-clones a direct
+    # URL even when a matching argopod is already installed, so install
+    # `../argopod[all,dev]` first and then this repo with --no-deps.
+    "argopod[cli,ml,review] @ git+https://github.com/mkeutgen/argopod@v0.5.2",
     "numpy>=1.26",
     "pandas>=2.1",
-    "pyarrow>=14.0",    # cached residual parquets
-    # scipy and gsw are imported directly by production stages (12 and 8 of them
-    # respectively) and reach us through no extra of argopod[cli,ml,review]:
-    # gsw lives in argopod[argo], scipy only ever arrived transitively via
-    # scikit-learn.  Declared here because run_all.sh --preflight requires them.
+    "pyarrow>=14.0",    # the cached residual grids are parquet
+    # scipy and gsw are imported directly by the pipeline scripts and reach us
+    # through no extra of argopod[cli,ml,review]: gsw lives in argopod[argo], and
+    # scipy only ever arrived through scikit-learn.  Named here so an install
+    # without those extras still runs the pipeline.
     "scipy>=1.11",
     "gsw>=3.6",
+    "joblib>=1.3",     # classifier.save / load (arrives with scikit-learn, named to be honest)
 ]
 
 [project.optional-dependencies]

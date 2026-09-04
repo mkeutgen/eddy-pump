@@ -7,21 +7,21 @@ network. Whether a rebuilt grid is byte-identical to the bound one is `make chec
 
 Four things can go wrong quietly here.
 
-1. THE RECIPE STOPS SAYING WHAT WAS BUILT. The bound cache's 2,542 grids cannot be rebuilt from a
+1. The recipe stops saying what was built. The bound cache's 2,542 grids cannot be rebuilt from a
    fresh Argo pull, so the recipe is the only surviving description of them. A flavour that loses a
    channel, a date that moves, a placeholder rule that flips: each would build a different cache
    under the same name.
 
-2. THE GRID KNOBS DRIFT. `Study.cache_policy()` passes argopod's DEFAULT `DetectionParams`, not the
+2. The grid knobs drift. `Study.cache_policy()` passes argopod's default `DetectionParams`, not the
    study's `params:` block, because the frozen cache was built under the defaults and the one knob
    the study moves acts at detection time. If a bin width or a smoothing window ever arrived from
    the study's block instead, every grid would change and nothing would say so.
 
-3. A SETTING GETS TWO AUTHORS. The ranges, the floats left out and the backscatter smoother are
+3. A setting gets two authors. The ranges, the floats left out and the backscatter smoother are
    declared once each, elsewhere in `config/events.yaml`, and joined into the policy in code. A
    copy of any of them inside the `cache:` block is refused rather than merged.
 
-4. THE FLOAT LIST AND THE RECIPE DISAGREE. `config/fleet.csv` promises each float a flavour by
+4. The float list and the recipe disagree. `config/fleet.csv` promises each float a flavour by
    name. A promised flavour the recipe does not declare builds nothing, quietly.
 """
 
@@ -44,7 +44,7 @@ FLEET = REPO / "config" / "fleet.csv"
 
 #: The four grid flavours and the channels each carries, in order. Written out rather than read
 #: from the manifest: a test that reads the file it is checking cannot notice the file changing.
-EXPECTED_LABELS = {
+EXPECTED_GRID_KINDS = {
     "paper_phys": ("AOU", "ABS_SAL", "SIGMA0"),
     "paper_bbp": ("AOU", "ABS_SAL", "BBP700_ADJUSTED", "SIGMA0"),
     "paper_nit": ("AOU", "ABS_SAL", "NITRATE_ADJUSTED", "SIGMA0"),
@@ -85,15 +85,15 @@ def fleet():
 # 1. the recipe says what was built
 # --------------------------------------------------------------------------- #
 def test_the_four_grid_flavours_carry_exactly_the_channels_they_always_did(policy):
-    assert dict(policy.labels) == EXPECTED_LABELS
+    assert dict(policy.grid_kinds) == EXPECTED_GRID_KINDS
 
 
 def test_a_float_earns_the_richest_flavour_its_data_fits(policy):
     """The rule that decides a float's two file names, checked on the four cases that exist."""
-    assert policy.label_for(["AOU", "ABS_SAL", "SIGMA0"]) == "paper_phys"
-    assert policy.label_for(["AOU", "ABS_SAL", "SIGMA0", "BBP700_ADJUSTED"]) == "paper_bbp"
-    assert policy.label_for(["AOU", "ABS_SAL", "SIGMA0", "NITRATE_ADJUSTED"]) == "paper_nit"
-    assert policy.label_for(
+    assert policy.grid_kind_for(["AOU", "ABS_SAL", "SIGMA0"]) == "paper_phys"
+    assert policy.grid_kind_for(["AOU", "ABS_SAL", "SIGMA0", "BBP700_ADJUSTED"]) == "paper_bbp"
+    assert policy.grid_kind_for(["AOU", "ABS_SAL", "SIGMA0", "NITRATE_ADJUSTED"]) == "paper_nit"
+    assert policy.grid_kind_for(
         ["AOU", "ABS_SAL", "SIGMA0", "NITRATE_ADJUSTED", "BBP700_ADJUSTED"]) == "paper_all"
 
 
@@ -169,14 +169,14 @@ def test_a_setting_copied_into_the_cache_block_is_refused(tmp_path, key):
     """Each of these is declared once, elsewhere in the same file. A copy would let the file and
     the build disagree with nothing to say which one ran."""
     text = MANIFEST_PATH.read_text(encoding="utf-8").replace(
-        "cache:\n  labels:", f"cache:\n  {key}: []\n  labels:", 1)
+        "cache:\n  grid_kinds:", f"cache:\n  {key}: []\n  labels:", 1)
     with pytest.raises(ValueError, match=key):
         load_manifest(_manifest_copy(tmp_path, text))
 
 
 def test_an_unknown_cache_key_names_the_ones_that_are_valid(tmp_path):
     text = MANIFEST_PATH.read_text(encoding="utf-8").replace(
-        "cache:\n  labels:", "cache:\n  no_such_key: 3\n  labels:", 1)
+        "cache:\n  grid_kinds:", "cache:\n  no_such_key: 3\n  labels:", 1)
     with pytest.raises(ValueError, match="unknown cache key"):
         load_manifest(_manifest_copy(tmp_path, text))
     with pytest.raises(ValueError, match="residual_ceilings"):
@@ -199,16 +199,16 @@ def test_a_manifest_that_does_not_say_how_its_cache_is_built_is_refused(tmp_path
 # --------------------------------------------------------------------------- #
 def test_the_float_list_is_the_fleet_the_bound_cache_was_built_from(fleet):
     pinned = PINS["fleet"]
-    assert list(fleet.columns) == ["WMO", "label", "tier"]
+    assert list(fleet.columns) == ["WMO", "grid_kind", "tier"]
     assert len(fleet) == pinned["floats"]
     assert fleet.WMO.nunique() == pinned["floats"]
-    assert fleet.label.value_counts().to_dict() == pinned["labels"]
+    assert fleet.grid_kind.value_counts().to_dict() == pinned["grid_kinds"]
     assert sorted(int(t) for t in fleet.tier.unique()) == pinned["tiers"]
 
 
 def test_every_flavour_the_float_list_promises_is_one_the_recipe_declares(fleet, policy):
     """A promised flavour the recipe does not know builds nothing and says nothing."""
-    assert set(fleet.label) <= set(policy.labels)
+    assert set(fleet.grid_kind) <= set(policy.grid_kinds)
 
 
 # --------------------------------------------------------------------------- #

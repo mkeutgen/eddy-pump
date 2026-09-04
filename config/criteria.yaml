@@ -1,8 +1,8 @@
-# config/criteria.yaml — the human review criterion, written down and versioned.
+# config/criteria.yaml — the criterion a human labels against, written down and versioned.
 #
-# The study has ONE review criterion, `phys_net_carbon_v1`, applying to both limbs (only the AOU
-# sign differs between them). `criterion_version` is what every label carries; `eddy_pump.criteria`
-# loads this file and refuses to open a batch under a criterion that is not ruled.
+# The study has one criterion, `phys_net_carbon_v1`, and it applies to both limbs; only the AOU sign
+# differs between them. `criterion_version` is what every label carries. `eddy_pump.criteria` reads
+# this file and will not open a batch under a criterion whose `status` is anything but `ruled`.
 #
 # The clauses are quoted, never paraphrased. Their source is `docs/LABELING_PROTOCOL.md`.
 
@@ -19,8 +19,8 @@ criteria:
       subduction: {AOU: negative, ABS_SAL: either}
       obduction:  {AOU: positive, ABS_SAL: either}
     # "Peaks" is read as: anomalies of the limb's sign on AOU and of either sign on absolute
-    # salinity, at the same depth. Clause 4 is STRICTLY TIGHTENING — an event that passes 1–4
-    # passes 1–3, never the reverse.
+    # salinity, at the same depth. Clause 4 only ever tightens: an event that passes clauses 1 to 4
+    # passes 1 to 3, never the reverse.
     clauses:
       1: "Colocated AOU and absolute-salinity peaks at the same depth — both clearly present"
       2: "Below the mixed layer"
@@ -30,9 +30,12 @@ criteria:
     channels_shown: [AOU, ABS_SAL, plus the pool's tracer term where the pool has one]
     rows_shown: [profile_with_background, pressure_space_residual, density_space_when_available]
     depth_rule: reviewer-applied from the panel (clause 2); no MLD drawn
+    # The two calibration sets: 42 panels per limb with saved answers. A labeller re-labels a fresh
+    # blind copy of the right one before every session and must pass before touching the batch.
+    # (The key is spelled `anchors` because the code and the tests read that name.)
     anchors:
-      obduction: data/external/calibration_reference_b6.csv               # 42-event upward calibration reference, kept as data (re-drawn later)
-      subduction: data/labels/draws/calib_subduction_v1.reference.yaml    # 42 levels; 17/42 — the consensus of the user's two blind passes (kappa 0.76), the five disagreements adjudicated 2026-08-27
+      obduction: data/external/calibration_reference_b6.csv               # the 42 upward panels, kept as data (a fresh set is drawn later)
+      subduction: data/labels/draws/calib_subduction_v1.reference.yaml    # the 42 downward panels; 17 accepted — the agreement of the user's two blind passes (kappa 0.76), the five disagreements decided by hand on 2026-08-27
     # Why clause 4 applies to both limbs: the net is a subtraction, and a subtraction of two rates
     # judged under different rules is not a net of anything. Dropping clause 4 would re-open the
     # criterion drift the protocol's own history records (a blind TP rate sliding from ~15 % to 5 %).

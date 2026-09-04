@@ -1,7 +1,7 @@
-# The review-app configuration for the study's DOWNWARD rate arm (plan step 6).
-# See physical_obduction.yaml for what every key means; the one difference is the AOU sign:
-# a subduction event is a NEGATIVE AOU anomaly (young, oxygen-rich water pushed down) beside a
-# salinity anomaly of either sign — clause 1 of phys_net_carbon_v1 with the limb's sign.
+# How the review app draws a panel for the downward limb (physical subduction).
+# See physical_obduction.yaml for what every key means. The one difference is the AOU sign: a
+# subduction event is a negative AOU anomaly — young, oxygen-rich water pushed down — beside a
+# salinity anomaly of either sign. That is clause 1 of phys_net_carbon_v1 with the limb's sign.
 
 event: paper_phys
 title: "physical subduction — net_carbon_v1 (AOU negative)"

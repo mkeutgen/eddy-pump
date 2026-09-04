@@ -1,11 +1,14 @@
-"""Every candidate of both physical pools carries features and a score — plan step 4 *(2026-08-26)*.
+"""Every candidate of both physical pools carries features and a score.
 
-Pins the two tracked manifests, `data/features/net_carbon_v1/FEATURES_SHA256` and
-`SCORES_SHA256`: features for every candidate of both pools from the bound cache, under the
-pools' pinned spec ids; an upward classifier trained on the study's own obduction labels, with
-honest float-grouped out-of-fold metrics; and a downward score transferred through a data-decided
-sign alignment and checked against the companion's verified events. The score only orders which
-panels a human sees first; it never enters a rate.
+Holds the two tracked provenance files, `data/features/net_carbon_v1/FEATURES_SHA256` and
+`SCORES_SHA256`: features for every candidate of both pools from the cache the saved lists stand
+on, under the pools' pinned spec ids; an upward classifier trained on the study's own obduction
+labels, with honest float-grouped out-of-fold metrics; and a downward score transferred through a
+data-decided sign alignment and checked against the companion's verified events. The score only
+orders which panels a human sees first; it never enters a rate.
+
+The choices behind the numbers are `eddy_pump.classifier`, tested on made-up data in
+`tests/test_classifier.py`. What is tested here is the real run's own record of itself.
 The large parquet files live under `results/` and are checked only when present.
 """
 
@@ -90,6 +93,21 @@ def test_the_downward_score_is_trained_on_the_companions_reviewed_detections_tra
     al = d["alignment"]
     assert "AOU_res_at_det" in al["flipped"] and "AOU_min_res" in al["swapped_and_negated"]
     assert d["companion_in_pool"]["verified"] == 3_983 and d["companion_in_pool"]["rejected"] == 233
+
+
+def test_the_run_kept_the_two_fitted_models_and_said_where(scores):
+    """A score with no saved model cannot be re-run, questioned or compared with the next one."""
+    for limb in ("upward", "downward"):
+        path = REPO / scores[limb]["model_file"]
+        assert path.parent == REPO / "results/net_carbon_v1/models"
+        if not path.exists():
+            pytest.skip("models not on this machine")
+        beside = json.loads(path.with_suffix(".json").read_text())
+        assert beside["limb"] == limb
+        assert beside["out_of_fold"]["cv"] == scores[limb]["cv"]
+        assert beside["labels"]["rows"] == scores[limb]["labelled_rows"]
+        assert beside["features"]["n"] == scores["features"]["n"]
+        assert len(beside["features"]["used"]) == beside["features"]["n"]
 
 
 def test_the_score_files_match_the_manifest_when_present(scores):

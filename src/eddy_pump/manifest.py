@@ -165,7 +165,7 @@ def _as_input_range(item: dict, where: str, spec_channels: set[str]) -> Variable
     name = str(kwargs["name"])
     if name in spec_channels:
         raise ValueError(
-            f"{where}: raw_inputs declares {name!r}, which is a DETECTION CHANNEL of this study. "
+            f"{where}: raw_inputs declares {name!r}, which is a detection channel of this study. "
             f"Its range belongs in that channel's own 'prefilter:' block, where `spec_id` covers "
             f"it; declaring it here as well would give one column two authors.")
     allowed = {"name", *PREFILTER_FIELDS}
@@ -226,7 +226,7 @@ def _as_excluded_float(item: dict, where: str) -> ExcludedFloat:
 #: floats left out, the smoother — is declared elsewhere in this file and joined in
 #: `Study.cache_policy()`, so naming one here would give one setting two authors.
 CACHE_KEYS: tuple[str, ...] = (
-    "labels", "window", "fill_policy", "adjusted_fallback", "residual_ceilings",
+    "grid_kinds", "window", "fill_policy", "adjusted_fallback", "residual_ceilings",
 )
 
 #: A key that belongs to a fleet-cache policy but is NOT the study's to declare here -> where it
@@ -264,18 +264,18 @@ def _as_cache_build(block, where: str) -> CacheBuild:
         raise ValueError(
             f"{where}: unknown cache key(s) {unknown}. Valid keys are: {', '.join(CACHE_KEYS)}")
 
-    labels_block = block.get("labels")
-    if not labels_block:
+    grid_kinds_block = block.get("grid_kinds")
+    if not grid_kinds_block:
         raise ValueError(
-            f"{where}: cache declares no 'labels' — the grid flavours and the channels each one "
-            f"carries. A flavour names the two files a float gets, so it cannot be inferred.")
-    if not isinstance(labels_block, dict):
-        raise ValueError(f"{where}: cache.labels must map a flavour to its list of channel names")
-    labels = {}
-    for name, channels in labels_block.items():
+            f"{where}: cache declares no 'grid_kinds' — the grid kinds and the channels each one "
+            f"carries. A grid kind names the two files a float gets, so it cannot be inferred.")
+    if not isinstance(grid_kinds_block, dict):
+        raise ValueError(f"{where}: cache.grid_kinds must map a grid kind to its list of channel names")
+    grid_kinds = {}
+    for name, channels in grid_kinds_block.items():
         if isinstance(channels, str) or not isinstance(channels, (list, tuple)):
-            raise ValueError(f"{where}: cache.labels.{name} must list its channel names")
-        labels[str(name)] = tuple(str(c) for c in channels)
+            raise ValueError(f"{where}: cache.grid_kinds.{name} must list its channel names")
+        grid_kinds[str(name)] = tuple(str(c) for c in channels)
 
     window_block = block.get("window")
     if window_block is None:
@@ -300,7 +300,7 @@ def _as_cache_build(block, where: str) -> CacheBuild:
 
     try:
         return CacheBuild(
-            labels=labels,
+            grid_kinds=grid_kinds,
             window=(None if since is None else str(since), None if until is None else str(until)),
             fill_policy=fill_policy,
             adjusted_fallback=str(block.get("adjusted_fallback", "cycle")),
@@ -311,7 +311,7 @@ def _as_cache_build(block, where: str) -> CacheBuild:
 
 
 def _resolve(path_str, base: Path) -> Path:
-    """A manifest path -> absolute. Relative paths resolve against the REPO ROOT."""
+    """A manifest path -> absolute. Relative paths resolve against the repository root."""
     p = Path(str(path_str)).expanduser()
     return p if p.is_absolute() else (base / p).resolve()
 
@@ -371,7 +371,7 @@ def _child_variables(parent: EventSpec, term: VariableConfig) -> tuple[VariableC
 def load_manifest(path: str | Path | None = None) -> Study:
     """Parse the canonical manifest into a :class:`~eddy_pump.study.Study`.
 
-    Relative paths in the manifest resolve against the REPO ROOT (the manifest lives in
+    Relative paths in the manifest resolve against the repository root (the manifest lives in
     `config/`, so its own directory is not the right base for `data/...`).
     """
     import yaml  # pyyaml arrives with argopod[cli]; imported here so `import eddy_pump` is cheap
