@@ -895,10 +895,18 @@ def main() -> None:
 
     if args.report:
         sheet = pd.read_csv(args.report)
-        key = pd.read_csv(pathlib.Path(args.report).parent / "ANSWER_KEY_do_not_open.csv")
-        if key.REF_LABEL.isna().all():
-            raise SystemExit("this calibration set has no REF_LABEL yet — its answers must be decided first")
-        rep = B.calibration_report(sheet, key[key.REF_LABEL.notna()].assign(REF_LABEL=lambda d: d.REF_LABEL.astype(int)))
+        sheet_dir = pathlib.Path(args.report).parent
+        key = pd.read_csv(sheet_dir / "ANSWER_KEY_do_not_open.csv")
+        # The answers live in the key (the first upward set) or in the frozen reference file that
+        # `load_batch.py --freeze-reference` writes (every set drawn blank, like calib_obduction_v1).
+        import yaml
+        from load_batch import reference_for
+        rec = yaml.safe_load((DRAWS / f"{sheet_dir.name}.yaml").read_text())
+        ref, _ = reference_for(rec, key)
+        if ref is None:
+            raise SystemExit("this calibration set has no decided answers yet — label it twice blind, decide the "
+                             "disagreements by hand, then `load_batch.py <batch> --freeze-reference`")
+        rep = B.calibration_report(sheet, ref)
         print(json.dumps(rep, indent=1, default=str))
         return
 

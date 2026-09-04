@@ -1,0 +1,66 @@
+# data/labels/draws/calib_obduction_v1_pass2.yaml -- a blind re-labelling copy of calib_obduction_v1 (pass 2). Built by pipeline/draw_batch.py
+# --repass; never edited by hand.
+batch_id: calib_obduction_v1_pass2
+built: '2026-09-04T16:13:37-05:00'
+builder: pipeline/draw_batch.py
+seed: 20260827
+study_id: net_carbon_v1
+pool_id: net_carbon_v1/physical/obduction
+spec_id: v1:31619ba88c252ed8
+event_type: physical_obduction
+criterion_version: phys_net_carbon_v1
+criterion_status: ruled
+cache:
+  path: /Users/mk0964/Documents/release/cache_paper/residual_cache_v4
+  fine_grids: 2542
+  fine_grids_sha256: 11fce215c7db6cebabfbb0d233d17ed7b6674e388bcfb5b91153449ec35f8299
+scores_manifest:
+  path: data/features/net_carbon_v1/SCORES_SHA256
+  sha256: 0a2e5c57d4c525b6286dca2df8e80baa559c80f4b1bfc19b5146b719a616d896
+  built: '2026-09-04T15:14:48'
+  features_manifest_sha256: 14b8ed206cb754f1c65872914c9dfae7f4917774d19ced6def8ebdccabce495d
+role: calibration
+decides: false
+sampling:
+  mode: calibration
+  draw: the same levels as calib_obduction_v1, re-shuffled for a blind re-labelling (pass 2)
+  design: null
+  frame: null
+  inclusion_probability: null
+composition:
+  clear_TP: 12 levels the study accepted, in the top score decile
+  clear_FP: 6 the study rejected in deciles 0-2 + 6 never labelled in decile 0
+  borderline: '18 in deciles 5-8: 9 the study accepted, 5 it rejected, 4 never labelled'
+status: 'REF_LABEL is blank: to be filled once, by two blind passes decided by hand under phys_net_carbon_v1, then
+  frozen as the upward reference (docs/PLAN.md step 2)'
+replaces: calib_obduction_b6, the 42 panels carried over from the earlier study
+n_science: 0
+n_controls:
+  calibration: 42
+hours_at_planning_rate: 0.3348333333333333
+sheet_columns:
+- LABEL
+- SAMPLE_ID
+- WMO
+- CYCLE_NUMBER
+- PRES_ADJUSTED
+- LATITUDE
+- LONGITUDE
+- TIME
+- EVENT_TYPE
+blind: true
+worksheet:
+  path: results/net_carbon_v1/labeling/calib_obduction_v1_pass2/calib_obduction_v1_pass2.csv
+  sha256: 298435cc7ec33f29daecc4cbdca0dd602109cf2ca39e7dfef50feb2c84ec8876
+  rows: 42
+answer_key:
+  path: results/net_carbon_v1/labeling/calib_obduction_v1_pass2/ANSWER_KEY_do_not_open.csv
+  sha256: b48f0b7583b0b8735315272ce117d9ff3862e0f6e6d03cf6fc45612ffb4baa7b
+  rows: 42
+panels:
+  dir: results/net_carbon_v1/labeling/calib_obduction_v1_pass2/panels
+  rendered: 42
+  of: 42
+reference_of: calib_obduction_v1
+derived_from: calib_obduction_v1
+pass: 2

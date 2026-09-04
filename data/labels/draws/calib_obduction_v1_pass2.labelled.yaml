@@ -1,0 +1,62 @@
+# data/labels/draws/calib_obduction_v1_pass2.labelled.yaml -- the session read and the hashes of the labelled sheet. Built by
+# pipeline/load_batch.py; never edited by hand.
+batch_id: calib_obduction_v1_pass2
+ingested: '2026-09-04T16:28:07-05:00'
+worksheet_mtime: '2026-09-04T16:20:58-05:00'
+anchor: null
+labelled_sheet:
+  path: results/net_carbon_v1/labeling/calib_obduction_v1_pass2/calib_obduction_v1_pass2_LABELLED_20260904T212807Z.csv
+  sha256: 8f2336810cab7d96f4f47233eb21a6b5adbef509b4c846f085236a52dc869a4c
+rows: 42
+decided: 42
+accepted: 19
+uncertain: 0
+blank: 0
+session:
+  n_reference: 42
+  n_decided: 42
+  n_missing_from_sheet: 0
+  n_undecided: 0
+  kappa: 0.9517241379310344
+  kappa_ci95_bootstrap:
+  - 0.847343505642673
+  - 1.0
+  kappa_pass: 0.6
+  base_rate_reference: 0.42857142857142855
+  base_rate_observed: 0.4523809523809524
+  base_rate_p: 0.757678308192069
+  base_rate_on_target: true
+  base_rate_pass_region_accepted:
+  - 12
+  - 24
+  agreement_by_tier:
+    borderline:
+      n: 18
+      agree: 18
+    clear_FP:
+      n: 12
+      agree: 11
+    clear_TP:
+      n: 12
+      agree: 12
+  verdict: PASS
+  verdict_means: PASS = not detectably drifted at this n; it is not evidence that the criterion held
+  disagreements:
+  - WMO: 5906035
+    CYCLE_NUMBER: 35
+    PRES_ADJUSTED: 780.0
+    LABEL: 1
+    REF_LABEL: 0
+  kind: calibration
+  reference:
+    batch_id: calib_obduction_v1
+    pool_id: net_carbon_v1/physical/obduction
+    criterion_version: phys_net_carbon_v1
+    frozen: '2026-09-04T16:28:04-05:00'
+    how: 'consensus of the user''s two blind passes on 2026-09-04 (pass 1: 18 yes / 22 no / 2 unsure, original sheet
+      sha256 4b7eff28ba67e20e…; pass 2: 19 yes / 23 no; 40 of 42 agree, kappa 1.00 on the 40 decided in both passes).
+      The two ''unsure'' of pass 1 decided by the user on a third look the same day: 4902409 cycle 194 340 dbar
+      no (pass 2 also no); 5906035 cycle 35 780 dbar no (pass 2 had said yes).'
+    source_sheet_sha256: c9a92d5f33971deded5990a94b1cd2703b299178ece5a82e11d8250e03593640
+    n: 42
+    base_rate: 18/42
