@@ -68,8 +68,20 @@ Each step names what it produces and the one number that matters. Estimates are 
    tests (from 102) in strict mode, a 15-word glossary, STATUS ten lines per day, the rejected words
    out of the prose. Left: remove the `domain.py` shim and rewire its two tests; re-measure the cold
    read. *Check: a cold read answers the seven questions in under 400 lines.* *Half a day.*
-6. **The adversarial review of both rates** before either is quoted. It produces a confirmed or
-   corrected `RATE_STATUS.md`. *(Archive: the first step of the archive's own plan.)* *Half a day.*
+6. **The adversarial review of both rates — done 2026-09-04.** Both hold as estimates of what
+   the reviewer called real: two independent recomputations reproduce them to eight decimals, and
+   every hash in the chain matches. But the reviewer drifted within the two first sessions by two to
+   three times the sampling error, for different reasons on each limb, and the net of the two limbs
+   changes sign across that band (+2,509 / +984 / −248 levels). Honest intervals: downward 0.123 to
+   0.249, upward 0.087 to 0.168. The record: `data/labels/audit/RATE_REVIEW_2026-09-04.md`.
+   **No net is quoted before step 7.**
+7. **Measure and correct the drift** *(your labelling: 2 × 100 panels, about 40 minutes; agent half
+   a day).* A blind re-judgement of 100 random panels from each first batch, shuffled, labelled in
+   sessions of at most 120 panels with controls interleaved by construction. The flip rate by original
+   position gives the correction and its uncertainty. Before drawing: regenerate the 2026-08-27
+   upward score file from the archive's recipe (commit e7a625c) and save each draw's stratum
+   membership beside its record, so the open-region strata can be reused. *Check: both rates and
+   the net carry an interval that includes the drift.*
 
 Blocked by nothing here: **the data deposit upload** (yours — the local deposit is staged at
 `~/Documents/release/zenodo-study-deposit`, 2.9 GB, verified; upload it, get the DOI, set
@@ -82,7 +94,8 @@ Blocked by nothing here: **the data deposit upload** (yours — the local deposi
 | The particle test on carbon subduction (≥ 1.00 σ backscatter) | keep it at 1.00 and report it; it costs about 3 % of the reference carbon events (archive record) | user |
 | Whether the paper census sits beside the earlier GRL letter's | beside; undecided | user |
 | Sizes of the positive-control, dipole and carbon-obduction arms | from the coverage the study's own samples show, not before | advisor |
-| About 143 more open-region upward panels, to bring the pool rate inside ±15 % | yes; about 1.1 hours of labelling (`make rates` gives the number) | user |
+| About 143 more open-region upward panels, to bring the pool rate inside ±15 % | after step 7, in sessions of at most 120 panels; about 1.1 hours | user |
+| Session rules in the protocol: at most 120 panels per session, controls interleaved by construction, the calibration copy labelled the day before | adopt; the drift the review found is the reason | user |
 
 ## Hard rules
 

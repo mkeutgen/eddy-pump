@@ -89,9 +89,9 @@ it.
 - **There is one label table**: `data/labels/study_reviews.parquet` with `study_batches.yaml` and
   `draws/*.yaml`. No other label layer exists in the code. **Why:** one door a rate may use, so a
   number cannot quietly mix two rules. *(Done 2026-09-03; see `docs/STATUS.md`.)*
-- **The upward rate is the open region alone.** The held region is the other 14,697 of that pool's
-  186,275 levels, picked earlier by the retired letter's stricter 1.96 σ cut. It is in no
-  probability sample and waits for a draw of its own under this study's criterion. No rate
+- **The upward rate covers the whole pool from two random samples** (since 2026-09-04): the open
+  region (171,578 levels) and the held region (the other 14,697, picked earlier by the retired
+  letter's stricter 1.96 σ cut, drawn as `rate_obduction_02` under this study's criterion). No rate
   extrapolates onto it. **Why:** a rate may only cover the levels its sample covers.
   *(Done 2026-09-03; see `docs/STATUS.md` and `docs/PLAN.md`.)*
 - **Every companion subduction event is a reference event;** one the detector misses is a detector

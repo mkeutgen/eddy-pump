@@ -4,6 +4,19 @@ The dated log: one entry per working day, newest first. Every number here was re
 that produces it, on the date shown. The plan is `docs/PLAN.md`; the decisions in force are
 `docs/DECISIONS.md`; the words are defined in `docs/IMPLEMENTATION_NOTES.md`.
 
+## 2026-09-04, night
+
+**The adversarial review of both rates: they hold as measured; the net does not.**
+
+- Three independent checks: the arithmetic and every hash reproduce (both rates to eight decimals;
+  lists, cache, scores, draws, sheets). No score, control or calibration row reaches a rate.
+- The reviewer drifted within both first sessions by more than the sampling error (2.9× downward,
+  1.8× upward), a moved threshold on one limb and fatigue on the other. The net of accepted levels
+  reads +2,509 / +984 / −248 across the band. Intervals: downward 0.123–0.249, upward 0.087–0.168.
+- Record: `data/labels/audit/RATE_REVIEW_2026-09-04.md`. Next: a blind re-judgement of 100 panels
+  per batch to measure the drift, and the 2026-08-27 upward score file regenerated from the
+  archive's recipe so the open-region strata can be reused.
+
 ## 2026-09-04, evening
 
 **The upward limb stands on its own footing: both batches labelled, the whole pool sampled.**

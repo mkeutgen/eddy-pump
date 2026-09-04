@@ -95,7 +95,7 @@ region is only 7.9 % of the pool by levels. The two calibration sets have no sci
 
 The rate of a pool is the weighted mean of the accepted labels, each weighted by 1/π, with a
 design-based standard error; its denominator is the candidate levels the sample covers. The upward
-rate is the open-region probability sample alone; the 14,697 levels of the pool that the first
-upward draw held back are not yet sampled and are drawn by `rate_obduction_02`. The classifier's score decides only
+rate combines two probability samples that partition the pool: the open region
+(`rate_obduction_01`) and the held region (`rate_obduction_02`, labelled 2026-09-04). The classifier's score decides only
 which stratum a panel came from; it never enters the number. The current rates and their error bars
 are `data/labels/audit/RATE_STATUS.md`. An arm stops when its limb is inside ±15 % relative.

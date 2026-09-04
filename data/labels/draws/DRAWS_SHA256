@@ -1,7 +1,8 @@
 # provenance of the study's draw records -- do not edit by hand
-# built 2026-09-04T15:56:33-05:00 by pipeline/draw_batch.py, seed 20260827
+# built 2026-09-04T17:50:08-05:00 by pipeline/draw_batch.py, seed 20260827
 e15d6612bb486e1ab8aff107b4e6986d8d2a1dff70b20de61aa7620ceb2fcd8d	calib_obduction_b6.yaml
 1e5c7a7f3d8d007b02fcb327e6919b4728b2b56b68b8454d89541f2ec67246b6	calib_obduction_v1.yaml
+1551940e1182e124cb726b0165ba759bd8ea34283a85d8ae516962cb4dc7dcf1	calib_obduction_v1_pass2.yaml
 519072de9058d5e2931426f61326b0c05b949f96483c1eb3c4350b127fe23dfb	calib_subduction_v1.yaml
 d45cc301b214d927870ee7d77f595041948b113c43793c84ba6f7f23bbb5b310	calib_subduction_v1_pass2.yaml
 1e362f0e3e4e1e6ff8c3eecf2eb26660dc808026296972e94e4fc7c384e78b3f	rate_obduction_01.yaml

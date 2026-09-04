@@ -25,11 +25,11 @@ Read this first. Every other document uses these words and only these.
   another machine set `EDDY_PUMP_CACHE` to where the cache actually sits.
 - **fingerprint** — a sha256 that names a thing so it cannot change quietly. The cache fingerprint
   hashes the grid file *names*, not their contents; `make check-cache` is what proves the contents.
-- **open region** — the part of the upward pool that was sampled at random: 171,578 of its 186,275
-  candidate levels. The upward rate is measured on this part alone.
-- **held region** — the other 14,697 levels of the upward pool. They were picked earlier by the
-  retired letter's stricter 1.96 σ cut, so no random sample covers them. They wait for a draw of
-  their own under this study's criterion.
+- **open region** — the part of the upward pool the first draw sampled at random: 171,578 of its
+  186,275 candidate levels (`rate_obduction_01`).
+- **held region** — the other 14,697 levels of the upward pool, picked earlier by the retired
+  letter's stricter 1.96 σ cut. Sampled by its own draw, `rate_obduction_02` (2026-09-04). The two
+  regions partition the pool, so the upward rate covers all of it.
 - **calibration set** — 42 panels per limb whose answers are saved. Before every labelling session
   the labeller re-labels a fresh blind copy and must pass.
 - **batch** — one drawn sample of candidates, with its rendered panels and its worksheet, the `.csv`
@@ -182,6 +182,8 @@ staged directory.
 - The absolute cache path in `CACHE_IDENTITY.json` and `CANDIDATES.json` points at one machine. Get
   the cache from the data deposit with `scripts/fetch_caches.sh`, and set `EDDY_PUMP_CACHE` to its
   directory if it lands anywhere else. (Dropping the absolute path is a plan item.)
-- The upward rate covers the open region alone: the held region, 14,697 of the pool's 186,275
-  levels, is in no probability sample yet. The downward pool is sampled whole. `rates.py` reports
-  each rate over the levels its sample covers, and never extrapolates to the rest.
+- Both physical pools are now sampled whole (the upward one in two regions). `rates.py` reports
+  each rate over the levels its samples cover, and never extrapolates to the rest.
+- The reviewer drifted within the two first sessions by more than the sampling error; the net of
+  the two limbs changes sign across that band. Read `data/labels/audit/RATE_REVIEW_2026-09-04.md`
+  before quoting either rate, and never a net without a drift correction.

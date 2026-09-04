@@ -38,11 +38,15 @@ flags. A human labels a **probability sample** of candidates as real or not. The
 weighted fraction of the real ones, with its denominator and its error bar. The classifier only
 orders which panels a human sees first; it never enters a number.
 
-Two rates measured so far, both awaiting an adversarial review:
+Two rates measured, both reviewed on 2026-09-04 (`data/labels/audit/RATE_REVIEW_2026-09-04.md`):
+they hold as estimates of what the reviewer called real, but the reviewer drifted within each
+session by more than the sampling error, and the net of the two limbs changes sign across that
+band. No net is quoted until the drift is measured and corrected.
 
 - **upward** 12.9 % ± 16.5 % relative, over the whole pool's 186,275 candidate levels, from two
   random samples: the open region (171,578 levels) and the held region (14,697 levels, picked
   earlier by the retired letter's stricter 1.96 σ cut, labelled 2026-09-04).
+- **downward** 18.7 % ± 13.7 % relative, over the pool's 133,307 candidate levels (`rate_subduction_01`).
 
 Every rate names its denominator; a uniform-random sample measures a rate, a score-ranked one never
 does. "Complete" always says against which pool. The words used here are defined at the top of
