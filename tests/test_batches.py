@@ -396,11 +396,13 @@ def test_the_rate_status_uses_the_design_variance_and_names_levels():
     T = pd.read_csv(p)
     r = T[T.pool_id == "net_carbon_v1/physical/obduction"].iloc[0]
     assert r.status == "measured" and "candidate levels" in r.denominator
-    # the upward rate is the open region alone (the held region is dropped, awaiting a fresh draw)
-    assert abs(r.pool_rate - r.open_rate) < 1e-9 and abs(r.open_rate - 0.1287) < 0.001
+    # the upward rate covers the whole pool since 2026-09-04: the open region (rate_obduction_01)
+    # plus the held region (rate_obduction_02); the two draws partition the 186,275 levels
+    assert r.open_N == 186275 and r.unsampled_levels == 0 and set(r.batches.split(",")) == {"rate_obduction_01", "rate_obduction_02"}
+    assert abs(r.pool_rate - r.open_rate) < 1e-9 and abs(r.open_rate - 0.1288) < 0.001
     assert r.open_se_design < r.open_se_naive_float_bootstrap
-    assert abs(r.open_se_design - 0.0114) < 0.001, "design-based SE with the three zero-count deciles floored"
-    assert 0.17 <= r.pool_half_width_95_rel < 0.18
+    assert abs(r.open_se_design - 0.0109) < 0.001, "design-based SE with the zero-count strata floored"
+    assert 0.16 <= r.pool_half_width_95_rel < 0.17
     assert "accepted_levels_estimated" in T.columns and "events" not in " ".join(T.columns)
     assert r.drift_band_first_half > r.pool_rate > r.drift_band_second_half
 
