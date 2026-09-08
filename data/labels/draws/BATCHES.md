@@ -1,4 +1,4 @@
-# The study's labelling batches — built 2026-09-04
+# The study's labelling batches — built 2026-09-07
 
 Built by `pipeline/draw_batch.py`; the design is `eddy_pump.batches`. Worksheets, keys and panels are under `results/net_carbon_v1/labeling/<batch_id>/` (not in Git); the draw records beside this page are the label table's input when a sheet comes back labelled.
 
@@ -6,11 +6,14 @@ Built by `pipeline/draw_batch.py`; the design is `eddy_pump.batches`. Worksheets
 |---|---|---:|---|---:|---|---|
 | `calib_obduction_b6` | calibration | 42 | 0 / calibration 42 | 0.3 | — | — |
 | `calib_obduction_v1` | calibration | 42 | 0 / calibration 42 | 0.3 | — | — |
+| `calib_obduction_v1_pass2` | calibration | 42 | 0 / calibration 42 | 0.3 | — | — |
 | `calib_subduction_v1` | calibration | 42 | 0 / calibration 42 | 0.3 | — | — |
 | `calib_subduction_v1_pass2` | calibration | 42 | 0 / calibration 42 | 0.3 | — | — |
 | `rate_obduction_01` | analysis | 619 | 579 / positive 20 / negative 20 | 4.9 | ±15.0% relative on the pool rate (target ±15%) | the pool's 42 calibration panels re-labelled blind: PASS |
 | `rate_obduction_02` | analysis | 128 | 90 / positive 18 / negative 20 | 1.0 | ±39.7% relative on this region's own rate | the pool's 42 calibration panels re-labelled blind: PASS |
 | `rate_subduction_01` | analysis | 832 | 792 / positive 20 / negative 20 | 6.6 | ±15.0% relative on the pool rate (target ±15%) | the pool's 42 calibration panels re-labelled blind: PASS |
+| `rejudge_obduction_01` | rejudgement | 120 | 100 / positive 10 / negative 10 | 1.0 | — | the pool's 42 calibration panels re-labelled blind: PASS, on an earlier day |
+| `rejudge_subduction_01` | rejudgement | 120 | 100 / positive 10 / negative 10 | 1.0 | — | the pool's 42 calibration panels re-labelled blind: PASS, on an earlier day |
 
 ## How to label one
 

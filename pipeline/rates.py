@@ -9,6 +9,13 @@ The rate is the weighted mean of the drawn sample's target verdicts with 1/π we
 candidate levels the sample covers. Where a pool is only partly sampled, the uncovered remainder is
 reported, never extrapolated onto. Uncertain verdicts are excluded and counted. Session flags are
 reported, never used as a filter.
+
+Beside every rate as labelled, where a blind re-judgement of the sitting has been labelled and
+loaded, the same rate corrected for how the reviewer's reading moved across that sitting: the rate
+if every panel had been read the way the blind second look reads it, with the sampling error and the
+re-judgement's own error added in quadrature (`rate_drift_corrected*`). The net of the two limbs,
+downward minus upward in accepted candidate levels, is quoted only when both limbs carry that
+correction — the 2026-09-04 review found the net changing sign across the drift band.
 """
 
 from __future__ import annotations
@@ -32,6 +39,66 @@ OUT = REPO / "data/labels/audit"
 DRAWS = REPO / "data/labels/draws"
 TARGET_REL = 0.15
 SECONDS_PER_PANEL = 28.7
+N_BOOT_REJUDGEMENT = 3000   # resamples of a re-judgement, for the drift correction's own error bar
+
+
+def loaded_rejudgements(batch_ids) -> dict:
+    """The blind re-judgements that have been labelled and loaded, by the batch each re-judges."""
+    import yaml
+
+    out = {}
+    for path in sorted(DRAWS.glob("*.labelled.yaml")):
+        bid = path.name.replace(".labelled.yaml", "")
+        rec_path = DRAWS / f"{bid}.yaml"
+        if not rec_path.exists():
+            continue
+        rec = yaml.safe_load(rec_path.read_text())
+        if rec.get("role") != "rejudgement" or rec.get("rejudges") not in set(batch_ids):
+            continue
+        block = (yaml.safe_load(path.read_text())["session"] or {}).get("rejudgement")
+        if block:
+            out[rec["rejudges"]] = {"batch_id": bid, **block}
+    return out
+
+
+def halves_of(A: pd.DataFrame) -> pd.Series:
+    """Which half of its own sitting each science row was labelled in.
+
+    Cut at the median position of the batch's decided science rows — the same cut the loader's
+    session read and the re-judgement's draw use, so all three speak about the same halves.
+    """
+    half = pd.Series("first", index=A.index, dtype=object)
+    for b, g in A.groupby("batch_id"):
+        half.loc[g.index] = np.where(g.SAMPLE_ID <= float(g.SAMPLE_ID.median()), "first", "second")
+    return half
+
+
+def corrected_rate_of(A: pd.DataFrame, N_h: dict, rejudged: dict, se_design: float) -> dict | None:
+    """The rate this pool would have had if every panel had been read the way the blind
+    re-judgements read them. None while no re-judgement of this pool has been loaded.
+
+    Every science row of a batch that has a re-judgement stops contributing its own 0/1 verdict and
+    contributes instead the chance that re-judgement accepts a panel of that first verdict from that
+    half of the sitting. A row of a batch with no re-judgement keeps its verdict — the correction is
+    never extended to a sitting nobody looked at twice.
+    """
+    if not rejudged:
+        return None
+    half = halves_of(A)
+    cells, cell = {}, pd.Series("", index=A.index, dtype=object)
+    for b, block in rejudged.items():
+        m = A.batch_id == b
+        for name, c in block["cells"].items():
+            cells[f"{b}|{name}"] = c
+        cell.loc[m] = b + "|" + A.decision[m].astype(int).astype(str) + "|" + half[m]
+    res = B.drift_corrected_rate(A.decision.to_numpy(float), cell.to_numpy(), A.design_stratum.to_numpy(),
+                                 N_h, cells, se_design, n_boot=N_BOOT_REJUDGEMENT, seed=2)
+    res["rejudgements"] = {b: {"batch_id": x["batch_id"], "n": x["overall"]["n"],
+                               "accept_to_reject": x["overall"]["accept_to_reject"],
+                               "reject_to_accept": x["overall"]["reject_to_accept"]}
+                           for b, x in rejudged.items()}
+    res["batches_not_rejudged"] = sorted(set(A.batch_id) - set(rejudged))
+    return res
 
 
 def main() -> None:
@@ -40,7 +107,7 @@ def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     study = load_manifest()
     crit = active_criterion()
-    rows, md = [], []
+    rows, md, limbs = [], [], {}
     for pool in (p for p in study.pools if p.tracer is None):
         try:
             A = L.analysis_sample(pool.pool_id, crit.id)
@@ -63,6 +130,9 @@ def main() -> None:
         # the denominator comes from the saved list itself, verified: the key hash, the spec and the
         # cache block are checked before the number a rate divides by is taken from it
         N_pool = len(C.read_saved(study, pool, verify=True, columns=C.KEYS)[0])
+        # the rate the blind re-judgements imply, beside the rate as labelled
+        rejudged = loaded_rejudgements(A.batch_id.unique())
+        corr = corrected_rate_of(A, N_h, rejudged, res["se_design"])
         # The rate is over the region the sample actually covers (N_open). N_open == N_pool when the
         # whole pool is sampled (the downward limb); when only part is (the upward limb, whose former
         # held region awaits a fresh draw), the uncovered remainder is reported, never extrapolated.
@@ -128,8 +198,18 @@ def main() -> None:
                "open_panels_needed_at_realised_variance": n_needed, "open_panels_more": more,
                "hours_more_at_planning_pace": (more * SECONDS_PER_PANEL / 3600) if more is not None else None,
                "realised_seconds_per_panel": pace, "anchor_batch": anchor["batch_id"] if anchor else None,
+               "rejudgement_batches": ",".join(sorted(x["batch_id"] for x in rejudged.values())) or None,
+               "rate_drift_corrected": corr["rate"] if corr else None,
+               "rate_drift_corrected_se_design": corr["se_design"] if corr else None,
+               "rate_drift_corrected_se_rejudgement": corr["se_rejudgement"] if corr else None,
+               "rate_drift_corrected_se_total": corr["se_total"] if corr else None,
+               "rate_drift_corrected_half_width_95": corr["half_width_95"] if corr else None,
+               "rate_drift_corrected_half_width_95_rel": corr["half_width_95_rel"] if corr else None,
+               "accepted_levels_drift_corrected": corr["rate"] * N_open if corr else None,
+               "net_accepted_levels_drift_corrected": None, "net_accepted_levels_half_width_95": None,
                "flags": " | ".join(flags)}
         rows.append(row)
+        limbs[pool.pool_id] = {"row": row, "N": N_open, "corr": corr, "rate": p_pool, "se": se_pool}
         md.append(f"## `{pool.pool_id}` — {p_pool:.1%} of {N_open:,} candidate levels, ±{hw_rel:.0%} relative (target ±{TARGET_REL:.0%})\n")
         md.append(f"Sampled region ({N_open:,} levels): stratified mean {res['rate']:.4f}, design-based SE {res['se_design']:.4f} "
                   f"(stratified bootstrap {res['se_stratified_bootstrap']:.4f}; the naive float bootstrap {res['se_naive_float_bootstrap']:.4f} is the "
@@ -143,11 +223,57 @@ def main() -> None:
                      + (f" ({more * SECONDS_PER_PANEL / 3600:.1f} h at the planning pace" + (f", {more * pace / 3600:.1f} h at the realised {pace:.0f} s/panel)" if pace else ")") if more else "") + "." if n_needed else "")
                   + (f" **Drift band**: the rate would read {halves['first']:.3f} if the whole session had read like its first half, "
                      f"{halves['second']:.3f} like its second — a systematic term the sampling interval does not contain." if halves else "") + "\n")
+        if corr:
+            md.append(f"**Drift-corrected**: {corr['rate']:.4f} ± {corr['half_width_95']:.4f} "
+                      f"(≈ {corr['rate'] * N_open:,.0f} accepted levels) — the rate if the reviewer had read every panel "
+                      f"the way the blind re-judgement reads it. Error bar: the sampling error {corr['se_design']:.4f} and "
+                      f"how well {', '.join(x['batch_id'] for x in rejudged.values())} pins the second look "
+                      f"{corr['se_rejudgement']:.4f}, added in quadrature. "
+                      f"{corr['rows_corrected']} of {corr['rows_corrected'] + corr['rows_kept_as_labelled']} science rows "
+                      f"are corrected"
+                      + (f"; {', '.join(corr['batches_not_rejudged'])} has no re-judgement and keeps its verdicts as "
+                         f"labelled" if corr["batches_not_rejudged"] else "") + ".\n")
+            md.append("| what the reviewer first called it | half of the sitting | re-judged | called real again |\n"
+                      "|---|---|---:|---:|\n" + "".join(
+                          f"| {'real' if k.split('|')[1] == '1' else 'not real'} | {k.split('|')[2]} | {v['n']} | "
+                          f"{v['accepted']} ({v['rate']:.0%}) |\n" for k, v in sorted(corr["cell_rates"].items())))
+        else:
+            md.append("**Drift-corrected**: not available — no blind re-judgement of this limb has been labelled and "
+                      "loaded yet (docs/PLAN.md).\n")
         if flags:
             md.append("Session flags (recorded, never a filter):\n" + "".join(f"- {f}\n" for f in flags))
         by = A.groupby("design_stratum").decision.agg(["size", "sum", "mean"])
         md.append("| stratum | N | n | accepted | rate | share of variance |\n|---|---:|---:|---:|---:|---:|\n" + "".join(
             f"| {s} | {N_h[s]:,} | {int(r['size'])} | {int(r['sum'])} | {r['mean']:.3f} | {res['strata'][s]['variance_share']:.0%} |\n" for s, r in by.iterrows()))
+    # the net: gross downward minus the return by obduction, in accepted candidate levels. It is
+    # quoted only when both limbs carry a drift correction — the 2026-09-04 review showed the net
+    # changing sign across the drift band, so an uncorrected net says nothing.
+    down = limbs.get("net_carbon_v1/physical/subduction")
+    up = limbs.get("net_carbon_v1/physical/obduction")
+    net = None
+    if down and up and down["corr"] and up["corr"]:
+        n_levels = down["corr"]["rate"] * down["N"] - up["corr"]["rate"] * up["N"]
+        var = (down["N"] * down["corr"]["se_total"]) ** 2 + (up["N"] * up["corr"]["se_total"]) ** 2
+        hw = B.Z * float(np.sqrt(var))
+        net = {"accepted_levels": n_levels, "half_width_95": hw,
+               "down_levels": down["corr"]["rate"] * down["N"], "up_levels": up["corr"]["rate"] * up["N"],
+               "as_labelled": down["rate"] * down["N"] - up["rate"] * up["N"]}
+        for limb in (down, up):
+            limb["row"]["net_accepted_levels_drift_corrected"] = n_levels
+            limb["row"]["net_accepted_levels_half_width_95"] = hw
+        md.append(f"## The net — {n_levels:,.0f} ± {hw:,.0f} accepted candidate levels\n")
+        md.append(f"Downward {net['down_levels']:,.0f} minus upward {net['up_levels']:,.0f}, both drift-corrected, both "
+                  f"in accepted candidate LEVELS (not events, not carbon). The error bar carries the sampling error of "
+                  f"each limb and how well each blind re-judgement pins the second look. As labelled, without the "
+                  f"correction, the same difference reads {net['as_labelled']:,.0f}.\n")
+    elif down and up:
+        md.append("## The net — not quoted\n")
+        md.append("The net of the two limbs is not quoted. The 2026-09-04 review found the reviewer's reading moving "
+                  "within each of the two first sittings by two to three times the sampling error, and the net changes "
+                  "sign across that band. It is quoted once a blind re-judgement of "
+                  + " and ".join(sorted(k.split("/")[-1] for k, v in limbs.items() if not v["corr"]))
+                  + " has been labelled and loaded (docs/PLAN.md).\n")
+
     T = pd.DataFrame(rows)
     T.to_csv(OUT / "rate_status.csv", index=False)
     measured = T[T.status == "measured"]

@@ -1,4 +1,4 @@
-# RATE STATUS — the physical rates from the human labels *(2026-09-04)*
+# RATE STATUS — the physical rates from the human labels *(2026-09-07)*
 
 Producer: `pipeline/rates.py`. Criterion `phys_net_carbon_v1`. Every rate is a weighted Hájek mean of human verdicts with declared inclusion probabilities; the denominator is the candidate levels the sample covers. The next batch goes to **`net_carbon_v1/physical/obduction` (the wider half-width)**.
 
@@ -7,6 +7,8 @@ Producer: `pipeline/rates.py`. Criterion `phys_net_carbon_v1`. Every rate is a w
 Sampled region (186,275 levels): stratified mean 0.1288, design-based SE 0.0109 (stratified bootstrap 0.0103; the naive float bootstrap 0.0131 is the conservative sensitivity and overstates a stratified draw) on 665 target verdicts over 469 floats (6 uncertain excluded; 3 strata with no accept, floored at the Jeffreys mean in the variance).
 
 Rate: **0.1288 ± 0.0213** (≈ 23,996 accepted candidate LEVELS in the sampled region — not events; a cycle-level estimand needs its own denominator). Sampling precision only, at the session-average instrument. At the variance realised, the sample needs about **808 target panels** for ±15%: 143 more (1.1 h at the planning pace, 0.3 h at the realised 7 s/panel). **Drift band**: the rate would read 0.146 if the whole session had read like its first half, 0.108 like its second — a systematic term the sampling interval does not contain.
+
+**Drift-corrected**: not available — no blind re-judgement of this limb has been labelled and loaded yet (docs/PLAN.md).
 
 Session flags (recorded, never a filter):
 - rate_obduction_01: acceptance fell with position (Mann-Whitney p = 0.006; 28% in the first quarter, 15% in the last; the rate would read 0.146 like the first half, 0.108 like the second)
@@ -37,6 +39,8 @@ Sampled region (133,307 levels): stratified mean 0.1874, design-based SE 0.0131 
 
 Rate: **0.1874 ± 0.0257** (≈ 24,980 accepted candidate LEVELS in the sampled region — not events; a cycle-level estimand needs its own denominator). Sampling precision only, at the session-average instrument. At the variance realised, the sample needs about **652 target panels** for ±15%: 0 more. **Drift band**: the rate would read 0.223 if the whole session had read like its first half, 0.149 like its second — a systematic term the sampling interval does not contain.
 
+**Drift-corrected**: not available — no blind re-judgement of this limb has been labelled and loaded yet (docs/PLAN.md).
+
 Session flags (recorded, never a filter):
 - rate_subduction_01: acceptance fell with position (Mann-Whitney p = 0.005; 27% in the first quarter, 19% in the last; the rate would read 0.223 like the first half, 0.149 like the second)
 
@@ -52,3 +56,7 @@ Session flags (recorded, never a filter):
 | open|d7 | 13,331 | 110 | 23 | 0.209 | 9% |
 | open|d8 | 13,331 | 122 | 43 | 0.352 | 11% |
 | open|d9 | 13,330 | 131 | 74 | 0.565 | 11% |
+
+## The net — not quoted
+
+The net of the two limbs is not quoted. The 2026-09-04 review found the reviewer's reading moving within each of the two first sittings by two to three times the sampling error, and the net changes sign across that band. It is quoted once a blind re-judgement of obduction and subduction has been labelled and loaded (docs/PLAN.md).

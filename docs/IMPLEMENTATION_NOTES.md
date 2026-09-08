@@ -56,6 +56,7 @@ Read this first. Every other document uses these words and only these.
 | `config/review/*.yaml` | the two panel layouts for the labelling app |
 | `data/candidates/net_carbon_v1/` | the six saved lists (full Parquet tables), a `.json` sidecar per list, `CANDIDATES.json` (the six in one page), `CACHE_IDENTITY.json` (the bound cache) |
 | `data/labels/study_reviews.parquet`, `study_batches.yaml`, `draws/` | the study's own labels: the batches, the reviews, the draw records with every inclusion probability, the saved calibration answers |
+| `data/labels/draws/<batch>.strata.parquet` + `.strata.json` | which level of a drawn batch's frame is in which stratum (WMO, CYCLE_NUMBER, PRES, design_stratum), with a sidecar naming the row count, the levels per stratum and the file hashes. `draw_batch.frame_strata` reads it; it is the only way to put more panels into the strata of an existing draw, because the score file a draw used is not kept |
 | `data/external/` | the earlier subduction study's verified events (they train the downward classifier and act as reference events) and the upward calibration reference; the earlier study's detection table that names the held region (`letter_pool_features.parquet`, hash checked) |
 | `src/eddy_pump/` | the code (below) |
 | `pipeline/` | the seven pipeline scripts |

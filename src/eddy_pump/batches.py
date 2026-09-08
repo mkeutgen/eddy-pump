@@ -6,6 +6,13 @@ size the draw for a target half-width; `draw_one_per_float` draws one panel per 
 at equal inclusion probability n/N; `draw_controls` adds blind controls; `hajek_rate` and
 `stratified_rate` are the estimators; `calibration_report` is the check before a session (Cohen's κ
 against the frozen 42-panel reference and the base rate on target: PASS or DRIFTED).
+
+The session rules of docs/LABELING_PROTOCOL.md live here too. `control_slots` and
+`interleaved_order` put the controls at evenly spaced positions in the sheet instead of wherever a
+shuffle drops them; `control_position_check` reads back whether an arm ended up bunched;
+`cochran_mantel_haenszel` asks whether acceptance fell between the two halves of a sheet with the
+stratum held fixed. `flip_table` reads a blind re-judgement of a labelled sheet, and
+`drift_corrected_rate` is the rate that re-judgement implies.
 """
 
 from __future__ import annotations
@@ -26,6 +33,9 @@ N_DECILES = 10
 FLOOR_SHARE = 0.05          # at least this share of the draw in every open decile (the plan's rule)
 Z = 1.96
 KAPPA_PASS = 0.6            # docs/LABELING_PROTOCOL.md: κ > 0.6 and base rate on target
+MAX_SHEET_ROWS = 120        # docs/LABELING_PROTOCOL.md: one sheet is one session, at most 120 panels
+CONTROL_POSITION_ALPHA = 0.01   # a control arm bunched into part of the sheet fails below this
+DRIFT_ALPHA = 0.01          # the within-stratum position trend that stops a rate batch being loaded
 WORKSHEET_COLS = ["LABEL", "SAMPLE_ID", "WMO", "CYCLE_NUMBER", "PRES_ADJUSTED",
                   "LATITUDE", "LONGITUDE", "TIME", "EVENT_TYPE"]
 BLIND_FORBIDDEN = {"score", "stratum", "src", "inclusion_probability", "candidate_id", "REF_LABEL",
@@ -192,6 +202,142 @@ def draw_one_per_float(S: pd.DataFrame, n: int, rng: np.random.Generator) -> pd.
     return out
 
 
+# --------------------------------------------------------------------------------------------- #
+# where the controls sit in the sheet
+# --------------------------------------------------------------------------------------------- #
+def control_slots(n_rows: int, n_controls: int, rng: np.random.Generator) -> np.ndarray:
+    """The positions the controls take in a sheet: one every `n_rows / n_controls` rows, starting
+    at a random offset inside the first step.
+
+    A plain shuffle can leave a whole arm in one part of the sheet — in the first upward rate
+    sheet 17 of the 20 negative controls landed in the second half, so they could not see the
+    reviewer drift that half was showing. Evenly spaced positions make that impossible: every
+    stretch of the sheet carries its share of both arms, by construction and not by luck.
+    """
+    if n_controls <= 0 or n_rows <= 0:
+        return np.zeros(0, int)
+    if n_controls > n_rows:
+        raise ValueError(f"{n_controls} controls do not fit in {n_rows} rows")
+    stride = n_rows / n_controls
+    phase = float(rng.uniform())
+    slots = np.clip(np.floor((np.arange(n_controls) + phase) * stride).astype(int), 0, n_rows - 1)
+    if len(np.unique(slots)) != n_controls:
+        raise AssertionError("two controls landed on the same position — the stride is below one row")
+    return slots
+
+
+def interleaved_order(arm: np.ndarray, rng: np.random.Generator,
+                      control_arms: tuple[str, ...] = CONTROL_STRATA) -> tuple[np.ndarray, dict]:
+    """The review order of a sheet: every control arm evenly spread over it, science rows shuffled
+    into the gaps. Returns (order, how the controls were placed).
+
+    Two spacings, one inside the other. The controls as a whole take evenly spaced positions in the
+    sheet (`control_slots`). Which control takes which position is not left to chance either: each
+    arm's members are laid on their own evenly spaced ladder, at a random offset, and the arms are
+    read off together — so the positive and the negative arm each end up spread over the whole
+    sheet, not only the controls taken together. `order[i]` is the row that sits at position i.
+
+    The offsets are NOT reported: the draw records are readable, and naming the control positions
+    would tell the reviewer which panels are controls.
+    """
+    arm = np.asarray(arm)
+    n = len(arm)
+    is_control = np.isin(arm, list(control_arms))
+    ctrl, sci = np.flatnonzero(is_control), np.flatnonzero(~is_control)
+    slots = control_slots(n, len(ctrl), rng)
+    # each arm on its own ladder over [0, 1), then all the controls read off in that order
+    ladder = np.empty(len(ctrl), float)
+    for a in sorted(set(arm[ctrl].tolist())):
+        m = arm[ctrl] == a
+        k = int(m.sum())
+        ladder[m] = (rng.permutation(k) + float(rng.uniform())) / k
+    order = np.empty(n, int)
+    order[slots] = ctrl[np.argsort(ladder, kind="mergesort")]
+    rest = np.setdiff1d(np.arange(n), slots, assume_unique=True)
+    order[rest] = rng.permutation(sci)
+    return order, {"how": "evenly spaced: one control every %.1f rows, and each arm evenly spread across "
+                          "those positions, both at a random offset" % (n / len(ctrl)),
+                   "stride_rows": float(n / len(ctrl)), "n_controls": int(len(ctrl)), "n_rows": int(n),
+                   "arms": {str(a): int((arm[ctrl] == a).sum()) for a in sorted(set(arm[ctrl].tolist()))},
+                   "offsets": "random, and not recorded — writing them down would name the control rows"}
+
+
+def control_position_check(sample_id: np.ndarray, arm: np.ndarray, n_rows: int,
+                           alpha: float = CONTROL_POSITION_ALPHA, min_n: int = 5) -> dict:
+    """Are the controls spread over the sheet, or bunched into part of it?
+
+    Each arm's positions are tested against the flat distribution (one-sample Kolmogorov–Smirnov on
+    (SAMPLE_ID + ½) / rows). An arm with fewer than `min_n` controls is reported and not tested.
+    FAIL below `alpha`; it is a loud reading of the session, not a reason to drop a label.
+    """
+    from scipy.stats import kstest
+
+    sample_id, arm = np.asarray(sample_id, float), np.asarray(arm)
+    out, worst = {}, 1.0
+    for a in sorted(set(arm.tolist())):
+        sid = np.sort(sample_id[arm == a])
+        u = (sid + 0.5) / n_rows
+        quarters = np.bincount(np.clip((u * 4).astype(int), 0, 3), minlength=4).tolist()
+        row = {"n": int(len(sid)), "quarters_of_the_sheet": quarters}
+        if len(sid) >= min_n:
+            row["ks_p_vs_flat"] = float(kstest(u, "uniform").pvalue)
+            worst = min(worst, row["ks_p_vs_flat"])
+        else:
+            row["ks_p_vs_flat"] = None
+            row["note"] = f"fewer than {min_n} controls in this arm — not tested"
+        out[str(a)] = row
+    return {"arms": out, "smallest_p": (float(worst) if worst < 1.0 else None), "alpha": alpha,
+            "verdict": "FAIL" if worst < alpha else "PASS",
+            "what_it_reads": "whether each control arm is spread over the sheet; a bunched arm cannot "
+                             "see a reviewer who changes within the session"}
+
+
+def cochran_mantel_haenszel(y: np.ndarray, second_half: np.ndarray, stratum: np.ndarray,
+                            continuity: bool = False) -> dict:
+    """Does acceptance fall between the two halves of the sheet, holding the stratum fixed?
+
+    The Cochran–Mantel–Haenszel test of the 2 × 2 × K table (first/second half × accepted/rejected,
+    one table per stratum). It answers the question the raw drop cannot: a sheet whose second half
+    happens to hold more low-score panels would show a drop with no drift at all. A stratum with no
+    accepts, all accepts, or rows in one half only carries no information and drops out — the count
+    is reported. Without the continuity correction by default, which is what the 2026-09-04 review
+    of the two rates ran.
+    """
+    from scipy.stats import chi2
+
+    y, second_half, stratum = np.asarray(y, float), np.asarray(second_half, bool), np.asarray(stratum)
+    num, var, used, dropped = 0.0, 0.0, 0, 0
+    per = {}
+    for h in sorted(set(stratum.tolist())):
+        m = stratum == h
+        T = int(m.sum())
+        n1 = int((~second_half[m]).sum())
+        n2 = T - n1
+        m1 = int(y[m].sum())
+        m2 = T - m1
+        if T < 2 or n1 == 0 or n2 == 0 or m1 == 0 or m2 == 0:
+            dropped += 1
+            continue
+        a = float(y[m & ~second_half].sum())
+        num += a - n1 * m1 / T
+        var += n1 * n2 * m1 * m2 / (T * T * (T - 1))
+        used += 1
+        per[str(h)] = {"n_first": n1, "n_second": n2,
+                       "accept_first": float(y[m & ~second_half].mean()),
+                       "accept_second": float(y[m & second_half].mean())}
+    if var <= 0:
+        return {"chi2": None, "p": None, "strata_used": used, "strata_dropped": dropped,
+                "note": "no stratum carries both halves and both verdicts — the test cannot run"}
+    d = abs(num) - (0.5 if continuity else 0.0)
+    stat = float(max(d, 0.0) ** 2 / var)
+    return {"chi2": stat, "p": float(chi2.sf(stat, 1)), "df": 1, "continuity_correction": bool(continuity),
+            "strata_used": used, "strata_dropped": dropped,
+            "accept_first_half": float(y[~second_half].mean()) if (~second_half).any() else None,
+            "accept_second_half": float(y[second_half].mean()) if second_half.any() else None,
+            "per_stratum": per,
+            "what_it_reads": "acceptance in the first half against the second, holding the stratum fixed"}
+
+
 def draw_controls(source: pd.DataFrame, n: int, rng: np.random.Generator) -> pd.DataFrame:
     """`n` rows uniformly from `source`, at most one per float (a simple random sample of floats
     then one row each; controls carry no inclusion probability — they never enter a rate)."""
@@ -217,9 +363,16 @@ class Batch:
     rng: np.random.Generator
     extra_key_cols: tuple[str, ...] = ()
     order: pd.DataFrame = field(default=None, repr=False)
+    interleave: bool = True
+    control_placement: dict = field(default_factory=dict, repr=False)
 
     def assemble(self) -> tuple[pd.DataFrame, pd.DataFrame]:
-        """(worksheet, answer_key): one random interleaving, SAMPLE_ID = review order."""
+        """(worksheet, answer_key): SAMPLE_ID is the review order.
+
+        The controls are placed at evenly spaced positions and the science rows shuffled into the
+        gaps, so every stretch of the sheet carries its share of both control arms. A sheet with no
+        controls, or none but controls (a calibration set), is shuffled whole.
+        """
         s = self.science.copy()
         s["stratum"] = TARGET
         s["src"] = s["design_stratum"]
@@ -237,7 +390,13 @@ class Batch:
         if allrows.duplicated(KEYS).any():
             dup = allrows[allrows.duplicated(KEYS, keep=False)]
             raise ValueError(f"{self.batch_id}: a candidate appears twice in one batch:\n{dup[KEYS].head()}")
-        perm = self.rng.permutation(len(allrows))
+        is_ctrl = allrows.stratum.isin(CONTROL_STRATA).to_numpy()
+        if self.interleave and is_ctrl.any() and (~is_ctrl).any():
+            perm, self.control_placement = interleaved_order(allrows.stratum.to_numpy(), self.rng)
+        else:
+            perm = self.rng.permutation(len(allrows))
+            self.control_placement = {"how": "a plain shuffle: this sheet has no two arms to space out",
+                                      "n_controls": int(is_ctrl.sum()), "n_rows": int(len(allrows))}
         allrows = allrows.iloc[perm].reset_index(drop=True)
         allrows.insert(0, "SAMPLE_ID", np.arange(len(allrows)))
         key = allrows.copy()
@@ -406,6 +565,113 @@ def stratified_rate(y: np.ndarray, pi: np.ndarray, stratum: np.ndarray, groups: 
             "design_effect_vs_weighted_iid": (se_design / se_iid_w) ** 2 if se_iid_w > 0 else float("nan"),
             "zero_or_full_count_strata": zero_strata, "n": int(len(y)), "floats": int(len(np.unique(groups))),
             "strata": per, "N": N}
+
+
+# --------------------------------------------------------------------------------------------- #
+# the blind re-judgement: what it measures, and the rate it corrects
+# --------------------------------------------------------------------------------------------- #
+#: The four cells of a re-judgement: what the reviewer first called the panel, and where in the
+#: source sheet it sat. `1|first` is a panel accepted in the first half of the source session.
+def cell_name(original: int, half: str) -> str:
+    return f"{int(original)}|{half}"
+
+
+def flip_table(original: np.ndarray, rejudged: np.ndarray, half: np.ndarray) -> dict:
+    """What a blind second look did to the first look, per half of the source sheet.
+
+    `original` and `rejudged` are 0/1 (undecided rows are the caller's to drop); `half` is 'first'
+    or 'second' — where the panel sat in the sheet it was first judged in. The counts are the flip
+    table (accept → reject and reject → accept), and with them the acceptance the second look gives
+    to panels the first look accepted and to panels it rejected. A Fisher test compares the two
+    halves: if the reviewer changed within the session, the second half flips differently.
+    """
+    from scipy.stats import fisher_exact
+
+    original, rejudged, half = np.asarray(original, int), np.asarray(rejudged, int), np.asarray(half)
+    out = {"cells": {}, "by_half": {}, "overall": {}}
+    for where in ("first", "second", "overall"):
+        m = np.ones(len(original), bool) if where == "overall" else (half == where)
+        block = {"n": int(m.sum()),
+                 "accept_to_accept": int(((original == 1) & (rejudged == 1) & m).sum()),
+                 "accept_to_reject": int(((original == 1) & (rejudged == 0) & m).sum()),
+                 "reject_to_accept": int(((original == 0) & (rejudged == 1) & m).sum()),
+                 "reject_to_reject": int(((original == 0) & (rejudged == 0) & m).sum())}
+        for lab in (1, 0):
+            n = int(((original == lab) & m).sum())
+            k = int(((original == lab) & (rejudged == 1) & m).sum())
+            block[f"rejudged_accepted_of_originally_{'accepted' if lab else 'rejected'}"] = {
+                "n": n, "accepted": k, "rate": (k / n if n else None)}
+            if where != "overall":
+                out["cells"][cell_name(lab, where)] = {"n": n, "accepted": k}
+        if where == "overall":
+            out["overall"] = block
+        else:
+            out["by_half"][where] = block
+    for lab in (1, 0):
+        a, b = out["cells"][cell_name(lab, "first")], out["cells"][cell_name(lab, "second")]
+        name = "accepted" if lab else "rejected"
+        out[f"fisher_p_first_vs_second_half_among_originally_{name}"] = (
+            float(fisher_exact([[a["accepted"], a["n"] - a["accepted"]],
+                                [b["accepted"], b["n"] - b["accepted"]]])[1]) if a["n"] and b["n"] else None)
+    out["what_it_reads"] = ("how often a blind second look agrees with the first, split by where in the "
+                            "first sheet the panel sat; it never enters a rate directly")
+    return out
+
+
+def drift_corrected_rate(y: np.ndarray, cell: np.ndarray, stratum: np.ndarray, N_h: dict,
+                         cells: dict, se_design: float, n_boot: int = 3000, seed: int = 0) -> dict:
+    """The rate the sheet would have given if every panel had been read the way the blind
+    re-judgement reads it.
+
+    Each science row's contribution stops being its 0/1 verdict and becomes the chance the blind
+    re-judgement accepts a panel of that first verdict from that half of the sheet — the cell rate
+    k/n out of `cells`. A row whose cell is not in `cells` (a batch with no re-judgement) keeps its
+    own verdict. The stratified mean is then formed exactly as before, Σ_h W_h · mean_h.
+
+    Two terms in the error bar:
+
+    * the design variance of the sample, `se_design`, carried over from the uncorrected rate. It is
+      an upper bound here: a corrected row's contribution moves by (q₁ − q₀) ≤ 1 when the verdict
+      moves by 1, so the corrected estimator's sampling variance is (q₁ − q₀)² times the
+      uncorrected one.
+    * how well the re-judgement itself pins the four cell rates, by resampling each cell (a
+      binomial draw at its own size, `n_boot` times) and re-forming the rate. The estimator is
+      linear in the cell rates, so this is exact and costs one array.
+
+    The two are independent — the re-judgement is a fresh sample of panels — and add in quadrature.
+    """
+    y, cell, stratum = np.asarray(y, float), np.asarray(cell), np.asarray(stratum)
+    N = float(sum(N_h.values()))
+    names = sorted(c for c in cells if cells[c]["n"] > 0)
+    q = {c: cells[c]["accepted"] / cells[c]["n"] for c in names}
+    corrected = np.array([q[c] if c in q else y[i] for i, c in enumerate(cell)], float)
+    point, coeff, const = 0.0, {c: 0.0 for c in names}, 0.0
+    per = {}
+    for h in sorted(set(stratum.tolist())):
+        m = stratum == h
+        n_h = int(m.sum())
+        if h not in N_h:
+            raise ValueError(f"stratum without a frame size: {h}")
+        W = float(N_h[h]) / N
+        point += W * float(corrected[m].mean())
+        for c in names:
+            coeff[c] += W * float((cell[m] == c).sum()) / n_h
+        const += W * float(y[m & ~np.isin(cell, names)].sum()) / n_h
+        per[str(h)] = {"n": n_h, "uncorrected_rate": float(y[m].mean()), "corrected_rate": float(corrected[m].mean())}
+    rng = np.random.default_rng(seed)
+    boots = np.full(n_boot, const)
+    for c in names:
+        n_c = cells[c]["n"]
+        boots += coeff[c] * rng.binomial(n_c, q[c], n_boot) / n_c
+    se_rejudgement = float(boots.std(ddof=1)) if len(names) else 0.0
+    se_total = float(np.sqrt(se_design ** 2 + se_rejudgement ** 2))
+    return {"rate": float(point), "se_design": float(se_design), "se_rejudgement": se_rejudgement,
+            "se_total": se_total, "half_width_95": Z * se_total,
+            "half_width_95_rel": (Z * se_total / point) if point > 0 else float("inf"),
+            "cell_rates": {c: {"n": cells[c]["n"], "accepted": cells[c]["accepted"], "rate": q[c]} for c in names},
+            "rows_corrected": int(np.isin(cell, names).sum()), "rows_kept_as_labelled": int((~np.isin(cell, names)).sum()),
+            "n_boot": int(n_boot), "per_stratum": per,
+            "what_it_is": "the rate if the reviewer had read every panel the way the blind re-judgement reads it"}
 
 
 # --------------------------------------------------------------------------------------------- #

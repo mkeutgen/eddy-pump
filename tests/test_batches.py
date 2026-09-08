@@ -358,6 +358,12 @@ def test_the_sheets_on_disk_when_present():
             # the controls are however many the reference could give (rate_obduction_02 has 18 + 20)
             assert len(ctrl) == sum(int(v) for v in r["n_controls"].values())
             assert ctrl.inclusion_probability.isna().all() and ctrl.REF_LABEL.isin([0, 1]).all()
+        elif bid.startswith("rejudge_"):
+            sci = key[key.stratum == B.TARGET]
+            assert len(sci) == r["n_science"] and len(ws) <= B.MAX_SHEET_ROWS
+            assert sci.original_label.isin([0, 1]).all() and sci.original_half.isin(["first", "second"]).all()
+            assert sci.original_half.value_counts().to_dict() == {"first": 50, "second": 50}
+            assert key[key.stratum.isin(B.CONTROL_STRATA)].REF_LABEL.isin([0, 1]).all()
         elif bid == "calib_obduction_b6":
             assert key.REF_LABEL.isin([0, 1]).all() and int(key.REF_LABEL.sum()) == 18
         else:
@@ -553,3 +559,68 @@ def test_a_recorded_path_resolves_into_this_checkout():
         assert B.repo_relative(here) == "results/net_carbon_v1/labeling/rate_obduction_01/rate_obduction_01.csv"
     missing = "/somewhere/else/eddy-pump/results/no_such_batch/no_such_file.csv"
     assert B.resolve_recorded_path(missing) == Path(missing), "an unknown path is handed back unchanged"
+
+
+# --------------------------------------------------------------------------------------------- #
+# the strata of a batch already drawn
+# --------------------------------------------------------------------------------------------- #
+STRATA_PINNED = ("rate_obduction_01", "rate_subduction_01")
+
+
+@pytest.mark.parametrize("bid", STRATA_PINNED)
+def test_the_saved_stratum_membership_is_the_frame_the_record_froze(bid):
+    """Each first rate batch has its frame's stratum membership saved beside its record, because
+    the score file that cut it is not kept: the upward classifier was retrained on 2026-09-03 and
+    overwrote the file the 2026-08-27 deciles came from. The saved membership is what lets more
+    panels go into the same strata. It has to hold the record's N per stratum exactly, and every
+    labelled science row has to sit in the stratum the sheet was written with."""
+    D = _draw_script()
+    if not (DRAWS / f"{bid}.strata.parquet").exists():
+        pytest.skip(f"the saved stratum membership of {bid} is not on this machine")
+    f = D.frame_strata(bid)                       # checks its own hashes and the record's N
+    rec = yaml.safe_load((DRAWS / f"{bid}.yaml").read_text())
+    frozen = {r["design_stratum"]: int(r["N"]) for r in rec["strata"]}
+    assert {k: int(v) for k, v in f.design_stratum.value_counts().items()} == frozen
+    assert len(f) == sum(frozen.values())
+    assert not f.duplicated(["WMO", "CYCLE_NUMBER", "PRES"]).any(), "a level is pinned twice"
+    assert f[["WMO", "CYCLE_NUMBER", "PRES"]].equals(
+        f.sort_values(["WMO", "CYCLE_NUMBER", "PRES"], kind="mergesort")[["WMO", "CYCLE_NUMBER", "PRES"]]), "not sorted by key"
+
+    reviews = REPO / "data/labels/study_reviews.parquet"
+    if not reviews.exists():
+        pytest.skip("no label table on this machine")
+    R = pd.read_parquet(reviews)
+    r = R[(R.batch_id == bid) & (R.control_arm == "target")]
+    if r.empty:
+        pytest.skip(f"{bid} is not ingested")
+    key = pd.Series(list(zip(r.key_wmo.astype(int), r.key_cycle.astype(int), r.key_pres.astype(int))), index=r.index)
+    pinned = key.map(dict(zip(f.key, f.design_stratum)))
+    assert pinned.notna().all(), f"{int(pinned.isna().sum())} labelled rows are not in the saved frame"
+    assert (pinned == r.design_stratum).all(), "a labelled row sits in a different stratum than its sheet says"
+    assert r.groupby("design_stratum").size().to_dict() == {s["design_stratum"]: s["n"] for s in rec["strata"]}
+
+
+def test_the_strata_of_a_drawn_batch_are_read_not_recut(tmp_path, monkeypatch):
+    """A design that wants the strata of an existing draw reads the saved membership. With no
+    membership saved it refuses and says so; with a membership whose bytes have moved it refuses
+    too. Neither case falls back on a score file."""
+    import shutil
+
+    D = _draw_script()
+    if not (DRAWS / "rate_obduction_01.strata.parquet").exists():
+        pytest.skip("the saved stratum membership is not on this machine")
+    draws = tmp_path / "draws"
+    draws.mkdir()
+    monkeypatch.setattr(D, "DRAWS", draws)
+    with pytest.raises(SystemExit) as e:
+        D.frame_strata("rate_obduction_01")
+    assert "cannot be recut from a score file" in str(e.value)
+
+    for suffix in (".yaml", ".strata.parquet", ".strata.json"):
+        shutil.copy(DRAWS / f"rate_obduction_01{suffix}", draws / f"rate_obduction_01{suffix}")
+    assert len(D.frame_strata("rate_obduction_01")) == 171_578
+    (draws / "rate_obduction_01.strata.parquet").write_bytes(
+        (draws / "rate_obduction_01.strata.parquet").read_bytes() + b"\0")
+    with pytest.raises(SystemExit) as e2:
+        D.frame_strata("rate_obduction_01")
+    assert "no longer describes the draw" in str(e2.value)

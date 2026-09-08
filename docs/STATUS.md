@@ -4,6 +4,21 @@ The dated log: one entry per working day, newest first. Every number here was re
 that produces it, on the date shown. The plan is `docs/PLAN.md`; the decisions in force are
 `docs/DECISIONS.md`; the words are defined in `docs/IMPLEMENTATION_NOTES.md`.
 
+## 2026-09-07
+
+**Plan step 7 prepared: the strata pinned, the session rules enforced, the two blind second looks drawn.**
+
+- The 2026-08-27 upward score file was regenerated from the archive's recipe (commit e7a625c):
+  every decile cut-point, the out-of-fold AUC and the labels reproduce digit for digit, and all
+  ten open-region strata counts match the record. The frame membership of both first batches is
+  pinned beside their records (`<batch>.strata.parquet`); a score file is no longer provenance.
+- The draw and the loader now enforce the session rules: at most 120 rows per sheet, controls
+  interleaved by construction, a control-position check, a within-stratum drift test (both first
+  batches would be refused today: p = 0.008 / 0.003), the calibration copy the day before.
+- `rejudge_obduction_01` and `rejudge_subduction_01` are drawn and rendered: 100 science panels
+  each (50 per original half) plus 20 interleaved controls. Once loaded, `make rates` reports the
+  drift-corrected rate beside the uncorrected one, and the net with an interval. Tests: 161.
+
 ## 2026-09-04, night
 
 **The adversarial review of both rates: they hold as measured; the net does not.**

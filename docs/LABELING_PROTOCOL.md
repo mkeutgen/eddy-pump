@@ -45,6 +45,35 @@ make rates                                         # the rate report
 If `make calibrate` says DRIFTED: re-examine the listed disagreements, decide your rule, re-label
 until you pass — before touching new data.
 
+## Session rules
+
+One sheet is one sitting. These rules exist because the review of 2026-09-04 found the reading
+moving inside the two first rate sessions, by two to three times the sampling error, and the net of
+the two limbs changes sign across that band.
+
+- **At most 120 panels in a sheet.** A draw that needs more is written as several sheets of the same
+  draw — `<batch>_s1`, `_s2`, and so on, one sitting each. The draw is untouched: same panels, same
+  order, same inclusion probabilities, so the rate is the one a single sheet would have given.
+  `--allow-long` writes one long sheet instead, and the record says so.
+- **The controls are spread through the sheet by the draw, not by luck.** They sit at evenly spaced
+  positions, and each arm is spread across those positions, so every stretch of the sheet carries
+  its share of both. In the first upward sheet a plain shuffle put 17 of the 20 negative controls in
+  the second half, where they could not see the reading change that half was showing.
+- **The calibration copy is labelled on an earlier day than the sheet.** Doing both in one afternoon
+  makes the check the same reading it is meant to test. The loader warns rather than refuses: it may
+  be the right thing to do on the day.
+- **Every rate sheet gets a blind second look afterwards** — 100 of its own panels, re-shown and
+  re-judged (see below). Draw it before loading the batch.
+
+What the loader refuses, and what it only records:
+
+| what it reads | what happens |
+|---|---|
+| the 42 calibration panels were not re-labelled PASS before the sheet | refuses |
+| acceptance fell from the first half of a sitting to the second, holding the stratum fixed (p < 0.01) | refuses, unless a blind second look of that batch has been drawn, or `--accept-drift` is given — which the record then carries |
+| a control arm is bunched into part of the sheet (p < 0.01) | records it, loud |
+| the calibration copy was labelled the same day as the sheet | records it, loud |
+
 ## Drawing a batch
 
 ```bash
@@ -68,6 +97,8 @@ The names it knows today:
 | `rate_obduction_01` | the upward rate over the whole pool, ten score deciles |
 | `rate_obduction_02` | the 14,697 upward levels the first upward draw held back, five pressure bands |
 | `rate_subduction_01` | the downward rate over the whole pool, ten score deciles |
+| `rejudge_obduction_01` | a blind second look at 100 panels of `rate_obduction_01`, 50 from each half |
+| `rejudge_subduction_01` | a blind second look at 100 panels of `rate_subduction_01`, 50 from each half |
 
 ## What a batch is
 
@@ -90,6 +121,37 @@ former held region, not the whole pool: its strata are five pressure bands rathe
 deciles, and its size is a budget of about 90 panels rather than a solve for ±15 %, because the
 region is only 7.9 % of the pool by levels. The two calibration sets have no science rows at all —
 42 panels each, chosen to sit half in the clear and half on the borderline.
+
+## The blind second look
+
+After every rate sheet, 100 of its own panels come back: 50 from the first half of the sitting and
+50 from the second, drawn at random, shuffled together with 10 positive and 10 negative controls,
+their panels drawn again, in a new order with new positions. Nothing on the sheet says which panel
+this is or what it was called the first time. The saved answers keep the first verdict, where the
+panel sat in the first sheet, which half that was, its stratum and its score.
+
+```bash
+make draw-batch BATCH=rejudge_obduction_01     # or rejudge_subduction_01
+make review BATCH=results/net_carbon_v1/labeling/rejudge_obduction_01/rejudge_obduction_01.csv
+make load BATCH=rejudge_obduction_01
+make rates
+```
+
+**What it measures.** How often the second look agrees with the first, split by which half of the
+first sitting the panel came from. If the reading held, the two halves agree the same way. If it
+moved, panels from the second half come back differently — and by how much is the size of the drift.
+
+**It never enters a rate on its own.** It decides nothing, and its record says so (`decides: false`).
+What it does is correct the rate of the sheet it re-judged. Each science row of that sheet stops
+contributing its own accept or reject and contributes instead the chance the second look accepts a
+panel of that first verdict from that half. The rate is then formed exactly as before.
+
+**How it is reported.** Beside the rate as labelled, never instead of it:
+`rate_drift_corrected` in `data/labels/audit/rate_status.csv`, with its own error bar, which carries
+both the sampling error of the sheet and how well 100 panels pin the second look. Read it as *the
+rate if the reviewer had read every panel the way the blind second look reads it*. The net of the
+two limbs — downward minus upward, in accepted candidate levels — is quoted only when both limbs
+carry that correction. Until then `RATE_STATUS.md` says the net is not quoted.
 
 ## What the labels become
 

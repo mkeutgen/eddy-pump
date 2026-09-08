@@ -1,0 +1,141 @@
+# data/labels/draws/rejudge_obduction_01.yaml -- the draw record of one study batch. Built by pipeline/draw_batch.py;
+# never edited by hand. The sheet and key it hashes live under results/ (not in Git).
+batch_id: rejudge_obduction_01
+built: '2026-09-07T20:17:48-04:00'
+builder: pipeline/draw_batch.py
+seed: 20260827
+study_id: net_carbon_v1
+pool_id: net_carbon_v1/physical/obduction
+spec_id: v1:31619ba88c252ed8
+event_type: physical_obduction
+criterion_version: phys_net_carbon_v1
+criterion_status: ruled
+cache:
+  path: /Users/mk0964/Documents/release/cache_paper/residual_cache_v4
+  fine_grids: 2542
+  fine_grids_sha256: 11fce215c7db6cebabfbb0d233d17ed7b6674e388bcfb5b91153449ec35f8299
+scores_manifest:
+  path: data/features/net_carbon_v1/SCORES_SHA256
+  sha256: 0a2e5c57d4c525b6286dca2df8e80baa559c80f4b1bfc19b5146b719a616d896
+  built: '2026-09-04T15:14:48'
+  features_manifest_sha256: 14b8ed206cb754f1c65872914c9dfae7f4917774d19ced6def8ebdccabce495d
+role: rejudgement
+decides: false
+rejudges: rate_obduction_01
+sampling:
+  mode: probability
+  draw: uniform within each half of the source sheet
+  design: probability
+  frame: the 576 decided science rows of rate_obduction_01 (its controls and its uncertain rows are not re-judged)
+  strata: the two halves of the source sheet, cut at the median position of its decided science rows — the same
+    cut the loader's session read uses
+  inclusion_probability: 50 / the half's decided science rows, exact and equal within a half
+  allocation: 50 panels from each half, by design, so the second look sees the start and the end of the first sitting
+    equally
+source:
+  batch_id: rate_obduction_01
+  labelled_sheet: results/net_carbon_v1/labeling/rate_obduction_01/rate_obduction_01_LABELLED_20260827T165016Z.csv
+  labelled_sheet_sha256: f3de2cc7acd7fcf54d9a020b8a6bc03b5c7ea24aa0292ba7b1619632435dddb3
+  answer_key_sha256: 35a2f83bdd101524631e193972a4a55b2dc00a8ecb9134c2748bdd817ed1ce19
+  rows_in_sheet: 619
+  decided_science_rows: 576
+  half_cut_at_sample_id: 301.5
+  halves:
+    first:
+      n: 288
+      originally_accepted: 70
+    second:
+      n: 288
+      originally_accepted: 46
+halves:
+- half: first
+  N: 288
+  n: 50
+  inclusion_probability: 0.1736111111111111
+  originally_accepted_in_the_half: 70
+  originally_accepted_in_the_draw: 11
+- half: second
+  N: 288
+  n: 50
+  inclusion_probability: 0.1736111111111111
+  originally_accepted_in_the_half: 46
+  originally_accepted_in_the_draw: 8
+answer_key_carries:
+- the first verdict (original_label)
+- where it sat in the first sheet (original_sample_id)
+- which half that was (original_half)
+- its stratum (design_stratum)
+- its score
+what_it_is_for: it measures how the reviewer's reading moved across the first sitting; it never enters a rate directly,
+  it corrects one (data/labels/audit/RATE_STATUS.md)
+check_before_labelling: 'the pool''s 42 calibration panels re-labelled blind: PASS, on an earlier day'
+steering_labels:
+  n: 0
+  accepted: 0
+  what: 'none: a re-judgement is not allocated on a model'
+n_science: 100
+n_controls:
+  positive: 10
+  negative: 10
+floats_in_draw: 92
+previously_judged_in_draw: 100
+hours_at_planning_rate: 0.9566666666666667
+strata: []
+controls:
+  positive:
+    source: the first upward calibration set's accepted events (REF_LABEL 1) with a candidate in the pool
+    criterion: phys_net_carbon_v1
+    n_source: 18
+    reference_k: null
+    reference_n: null
+    reference_provenance: the 42 upward calibration panels (calibration_reference_b6.csv); the reader reports the
+      controls, the drift test pools the arms across batches
+    src: first upward calibration set, accepted
+    steering: the study's own obduction reviews joined to the pool, each with the score a model gave it without
+      seeing its own label
+  negative:
+    source: the first upward calibration set's rejected events (REF_LABEL 0) with a candidate in the pool, classifier
+      score < 0.5
+    criterion: phys_net_carbon_v1
+    n_source: 22
+    score_cap: 0.5
+    ceiling: 0.2
+    ceiling_note: display only; a rejected candidate the classifier calls likely is a plausible detector miss, not
+      a control
+    src: first upward calibration set, rejected
+sheet_columns:
+- LABEL
+- SAMPLE_ID
+- WMO
+- CYCLE_NUMBER
+- PRES_ADJUSTED
+- LATITUDE
+- LONGITUDE
+- TIME
+- EVENT_TYPE
+blind: true
+control_placement:
+  how: 'evenly spaced: one control every 6.0 rows, and each arm evenly spread across those positions, both at a
+    random offset'
+  stride_rows: 6.0
+  n_controls: 20
+  n_rows: 120
+  arms:
+    neg_ctrl: 10
+    pos_ctrl: 10
+  offsets: random, and not recorded — writing them down would name the control rows
+worksheet:
+  path: results/net_carbon_v1/labeling/rejudge_obduction_01/rejudge_obduction_01.csv
+  sha256: 34ed66863f06661faf247f8ab7774f1eb21ce68221c7db9beae88f07c463d4b8
+  rows: 120
+answer_key:
+  path: results/net_carbon_v1/labeling/rejudge_obduction_01/ANSWER_KEY_do_not_open.csv
+  sha256: ce53c9e3137c6bb161b069e55fd8369ac11acb266d6124ca6c707b5e7c564519
+  rows: 120
+sessions: null
+session_rule: one sheet of 120 rows
+panels:
+  dir: results/net_carbon_v1/labeling/rejudge_obduction_01
+  rendered: 120
+  of: 120
+  per_sheet: 1

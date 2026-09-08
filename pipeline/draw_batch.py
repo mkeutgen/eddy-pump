@@ -3,10 +3,12 @@
 
 reads  data/candidates/net_carbon_v1/ (the saved lists, verified), results/net_carbon_v1/scores/,
        data/external/{calibration_reference_b6.csv, manually_verified_physical_subd_events.csv,
-       letter_pool_features.parquet}, config/
+       letter_pool_features.parquet}, config/,
+       data/labels/draws/<batch>.strata.{parquet,json} (which level of a drawn batch's frame is in
+       which stratum — `frame_strata`, the only way to add panels to the strata of an existing draw)
 writes results/net_carbon_v1/labeling/<batch>/{<batch>.csv, ANSWER_KEY_do_not_open.csv, panels/} (not in git)
        data/labels/draws/{<batch>.yaml, DRAWS_SHA256, BATCHES.md}
-usage  draw_batch.py BATCH [BATCH ...] [--seed N] [--target 0.15] [--render] [--dry-run]
+usage  draw_batch.py BATCH [BATCH ...] [--seed N] [--target 0.15] [--render] [--dry-run] [--allow-long]
        draw_batch.py --list                 the batch names this script knows and their state
        draw_batch.py --report SHEET.csv     check a re-labelled 42-panel calibration sheet
        draw_batch.py --repass BATCH_ID      a fresh blind copy of a calibration batch
@@ -19,6 +21,18 @@ design again, give it a new name.
 
 The design is `eddy_pump.batches`: score deciles, Neyman allocation with a 5 % floor, one panel per
 float per stratum at equal inclusion probability, blind controls.
+
+A design that adds panels to the strata of a batch already drawn reads that batch's saved stratum
+membership (`frame_strata`) and never cuts deciles again: the score file a draw used is not kept,
+and a decile cut from a later one is a different stratum under the same name.
+
+Two session rules of docs/LABELING_PROTOCOL.md are enforced here. The controls are placed at evenly
+spaced positions in the sheet and each arm spread across those positions, so no arm can end up in
+one part of the sitting the way 17 of the first upward sheet's 20 negative controls did. And a sheet
+is at most 120 panels: a longer draw is written as several sheets of the same draw
+(`<batch>_s1`, `_s2`, …), one sitting each, unless `--allow-long` says to write it whole. The draw
+itself is untouched by the split — same rows, same order, same inclusion probabilities — so the rate
+is the one a single sheet would have given.
 """
 
 from __future__ import annotations
@@ -78,6 +92,14 @@ HELD_LEVELS = 14697        # what rate_obduction_01's frozen record says the reg
 HELD_PANELS = 90           # the plan's budget for it: about 90 panels, one per float
 HELD_PREFIX = "former_held"   # the record of rate_obduction_01 calls the same strata letter_pool_1p96|<band>
 
+# --- the session rules (docs/LABELING_PROTOCOL.md) --------------------------------------------- #
+#: One sheet is one sitting. The 2026-09-04 review of the two rates found the reviewer changing
+#: within a session of 619 panels read at about 7 seconds each, by two to three times the sampling
+#: error, so a sheet is capped and a longer draw is written out as several sheets of one draw.
+MAX_SHEET_ROWS = B.MAX_SHEET_ROWS
+#: A blind re-judgement: 100 science rows of a labelled rate sheet, half from each half of it.
+REJUDGE_SCIENCE, REJUDGE_CONTROLS = 100, 10
+
 _VERIFIED_ROWS: dict[str, int] = {}   # event_type -> rows of the saved list, as verified when it was read
 
 
@@ -128,6 +150,61 @@ def scores_manifest() -> dict:
     feats = json.loads(FEATURES_MANIFEST.read_text().split("\n", 1)[1])
     return {"sha256": B.sha256_of(SCORES_MANIFEST), "content": scores,
             "features_sha256": B.sha256_of(FEATURES_MANIFEST), "cache_sha256": feats["cache"]["fine_grids_sha256"]}
+
+
+# --------------------------------------------------------------------------------------------- #
+# the strata of a batch already drawn
+# --------------------------------------------------------------------------------------------- #
+#: The columns of `<batch>.strata.parquet`. PRES is round(PRES_ADJUSTED), the third part of the key.
+STRATA_COLUMNS = ["WMO", "CYCLE_NUMBER", "PRES", "design_stratum"]
+
+
+def frame_strata(batch_id: str) -> pd.DataFrame:
+    """Which level of a drawn batch's frame belongs to which stratum, read from beside its record.
+
+    A draw record freezes each stratum's N and its inclusion probability, and that is all a rate
+    needs. Adding MORE panels to the same strata needs one thing more: which of the levels nobody
+    looked at belongs to which stratum. That is not in the record, and it must never be recomputed
+    from a score file — the file that cut the first upward batch's deciles was overwritten when the
+    upward classifier was retrained on 2026-09-03, and a decile cut from a different score file is
+    a different stratum wearing the same name. So the membership is written once, checked against
+    the frozen record, and read back here.
+
+    `<batch>.strata.parquet` holds one row per level of the frame; `<batch>.strata.json` beside it
+    holds the row count, the count per stratum and the sha256 of the parquet. Both are checked
+    before a row is returned, and the counts are checked against the draw record as well: if any of
+    them has moved, this raises rather than handing back a frame that no longer describes the draw.
+    """
+    import yaml
+
+    pq, side = DRAWS / f"{batch_id}.strata.parquet", DRAWS / f"{batch_id}.strata.json"
+    if not (pq.exists() and side.exists()):
+        raise SystemExit(
+            f"{batch_id}: no saved stratum membership beside its draw record ({pq.name} and {side.name}). "
+            f"Its strata cannot be recut from a score file: the score file a draw used is not kept, and a "
+            f"decile cut from a later one is a different stratum under the same name. Write the membership "
+            f"from the score file the draw record names, check it against that record's N per stratum, and "
+            f"save it beside the record before drawing anything into these strata.")
+    meta = json.loads(side.read_text())
+    got = B.sha256_of(pq)
+    if got != meta.get("parquet_sha256"):
+        raise SystemExit(f"{pq.name} hashes to {got[:16]}…, not the {str(meta.get('parquet_sha256'))[:16]}… its "
+                         f"sidecar names; the saved membership has been rewritten and no longer describes the draw")
+    f = pd.read_parquet(pq)
+    if list(f.columns) != STRATA_COLUMNS:
+        raise SystemExit(f"{pq.name}: columns {list(f.columns)}, expected {STRATA_COLUMNS}")
+    if len(f) != meta.get("rows"):
+        raise SystemExit(f"{pq.name}: {len(f):,} rows against the {meta.get('rows'):,} its sidecar names")
+    counts = {k: int(v) for k, v in f.design_stratum.value_counts().items()}
+    if counts != {k: int(v) for k, v in meta.get("per_stratum_N", {}).items()}:
+        raise SystemExit(f"{pq.name}: the levels per stratum are not the ones its sidecar names")
+    rec = yaml.safe_load((DRAWS / f"{batch_id}.yaml").read_text())
+    frozen = {r["design_stratum"]: int(r["N"]) for r in rec["strata"]}
+    if counts != frozen:
+        raise SystemExit(f"{pq.name}: the levels per stratum are not the ones {batch_id}.yaml froze — the frame "
+                         f"a measured rate stands on has moved")
+    f["key"] = pd.Series(list(zip(f.WMO.astype(int), f.CYCLE_NUMBER.astype(int), f.PRES.astype(int))), index=f.index)
+    return f
 
 
 # --------------------------------------------------------------------------------------------- #
@@ -268,12 +345,12 @@ def rate_arm(study, pool, s: pd.DataFrame, lab: pd.DataFrame, p_plan: float, p_s
     return batch, design
 
 
-def blind_controls(controls, science: pd.DataFrame, rng: np.random.Generator):
-    """Twenty positive and twenty negative blind controls, none of them a science row."""
+def blind_controls(controls, science: pd.DataFrame, rng: np.random.Generator, n: int = N_CONTROLS):
+    """`n` positive and `n` negative blind controls, none of them a science row."""
     pos_src, neg_src, pos_meta, neg_meta = controls
     drawn = set(science.key)
-    pos = B.draw_controls(pos_src[~pos_src.key.isin(drawn)], N_CONTROLS, rng).assign(stratum=B.POS_CTRL)
-    neg = B.draw_controls(neg_src[~neg_src.key.isin(drawn) & ~neg_src.key.isin(pos.key)], N_CONTROLS, rng).assign(stratum=B.NEG_CTRL)
+    pos = B.draw_controls(pos_src[~pos_src.key.isin(drawn)], n, rng).assign(stratum=B.POS_CTRL)
+    neg = B.draw_controls(neg_src[~neg_src.key.isin(drawn) & ~neg_src.key.isin(pos.key)], n, rng).assign(stratum=B.NEG_CTRL)
     pos["src"], neg["src"] = pos_meta["src"], neg_meta["src"]
     ctrl = pd.concat([pos, neg], ignore_index=True)
     ctrl["previously_judged"] = True
@@ -485,6 +562,185 @@ def downward_controls(s: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, dict
 
 
 # --------------------------------------------------------------------------------------------- #
+# one sheet is one sitting: the 120-panel cap and the split
+# --------------------------------------------------------------------------------------------- #
+def session_sizes(n_rows: int, max_rows: int = MAX_SHEET_ROWS) -> list[int]:
+    """How to cut `n_rows` into sittings of at most `max_rows`: as few as possible, as equal as
+    possible. 619 rows at 120 becomes six sheets of 103 or 104, not five of 120 and one of 19."""
+    k = max(1, -(-n_rows // max_rows))
+    base, extra = divmod(n_rows, k)
+    return [base + (1 if i < extra else 0) for i in range(k)]
+
+
+def write_session_sheets(bdir: pathlib.Path, ws: pd.DataFrame, key: pd.DataFrame, bid: str,
+                         allow_long: bool, max_rows: int = MAX_SHEET_ROWS) -> dict:
+    """The worksheet and the sealed key, written as one sheet or as several sittings of one draw.
+
+    A draw longer than `max_rows` is cut into consecutive sheets `<bid>_s1`, `_s2`, … , each in its
+    own directory with its own sealed key and its own panels. The draw is untouched: the same rows,
+    the same strata, the same inclusion probabilities, in the same order — so the rate the sheets
+    give is the rate the single sheet would have given, to the bit. Only the sitting changes. The
+    controls were placed at evenly spaced positions before the cut, so every sheet carries its share
+    of both arms. `--allow-long` writes the one long sheet instead and says so in the record.
+    """
+    if len(ws) <= max_rows or allow_long:
+        out = B.write_sheets(bdir, ws, key, bid)
+        out["sessions"] = None
+        out["session_rule"] = (f"one sheet of {len(ws)} rows"
+                               + ("" if len(ws) <= max_rows else
+                                  f" — over the {max_rows}-panel session cap, written whole because --allow-long was given"))
+        return out
+    sizes = session_sizes(len(ws), max_rows)
+    sessions, lo = [], 0
+    for i, size in enumerate(sizes, start=1):
+        sid = f"{bid}_s{i}"
+        w, k = ws.iloc[lo:lo + size], key.iloc[lo:lo + size]
+        sheets = B.write_sheets(bdir / sid, w, k, sid)
+        sessions.append({"sheet_id": sid, "dir": B.repo_relative(bdir / sid), **sheets,
+                         "sample_id_first": int(w.SAMPLE_ID.iloc[0]), "sample_id_last": int(w.SAMPLE_ID.iloc[-1]),
+                         "controls": int(k.stratum.isin(B.CONTROL_STRATA).sum())})
+        lo += size
+    def roll(which: str) -> str:
+        return hashlib.sha256("".join(f"{x[which]['sha256']}\t{x['sheet_id']}\n" for x in sessions).encode()).hexdigest()
+    return {"worksheet": {"path": B.repo_relative(bdir), "sha256": roll("worksheet"), "rows": int(len(ws))},
+            "answer_key": {"path": B.repo_relative(bdir), "sha256": roll("answer_key"), "rows": int(len(key))},
+            "sessions": sessions,
+            "session_rule": f"{len(sizes)} sheets of at most {max_rows} panels, one sitting each, from one draw; "
+                            f"the sha256 above is over the sheets' own hashes in order, and the path is the "
+                            f"directory that holds them"}
+
+
+def sheet_worksheets(bdir: pathlib.Path, ws: pd.DataFrame, sheets: dict) -> list[tuple[pathlib.Path, pd.DataFrame]]:
+    """(directory, its rows) per sheet — one pair for a whole sheet, one per sitting for a split."""
+    if not sheets.get("sessions"):
+        return [(bdir, ws)]
+    return [(B.resolve_recorded_path(x["dir"]), ws[ws.SAMPLE_ID.between(x["sample_id_first"], x["sample_id_last"])])
+            for x in sheets["sessions"]]
+
+
+# --------------------------------------------------------------------------------------------- #
+# the blind re-judgement of a labelled rate sheet
+# --------------------------------------------------------------------------------------------- #
+def source_science_rows(source_id: str) -> tuple[pd.DataFrame, dict]:
+    """The decided science rows of a labelled rate sheet: the verdict each got, where it sat in the
+    sheet, and which half of the sitting that was.
+
+    Read from the frozen labelled sheet the loader kept when the batch was loaded, checked against
+    the hash that record names; if the batch has not been loaded yet, from the live worksheet. The
+    halves are cut at the median position of the decided science rows — the same cut the loader's
+    session read uses, so the correction and the session read speak about the same halves.
+    """
+    import yaml
+
+    rec = yaml.safe_load((DRAWS / f"{source_id}.yaml").read_text())
+    if rec["role"] != "analysis":
+        raise SystemExit(f"{source_id} is not a rate batch; only a rate sheet is re-judged")
+    kp = B.resolve_recorded_path(rec["answer_key"]["path"])
+    if B.sha256_of(kp) != rec["answer_key"]["sha256"]:
+        raise SystemExit(f"{kp} is not the sealed key {source_id}'s record names — refusing to re-judge it")
+    lp = DRAWS / f"{source_id}.labelled.yaml"
+    if lp.exists():
+        lab = yaml.safe_load(lp.read_text())
+        wp = B.resolve_recorded_path(lab["labelled_sheet"]["path"])
+        want = lab["labelled_sheet"]["sha256"]
+    else:
+        wp, want = B.resolve_recorded_path(rec["worksheet"]["path"]), None
+    if not wp.exists():
+        raise SystemExit(f"the labelled sheet of {source_id} is absent ({wp}); it is what a re-judgement re-judges")
+    got = B.sha256_of(wp)
+    if want and got != want:
+        raise SystemExit(f"{wp} hashes to {got[:16]}…, not the {want[:16]}… the loaded record names — refusing")
+    ws, key = pd.read_csv(wp), pd.read_csv(kp)
+    m = key.merge(ws[["SAMPLE_ID", "LABEL"]], on="SAMPLE_ID", validate="one_to_one")
+    m["LABEL"] = pd.to_numeric(m.LABEL, errors="coerce")
+    t = m[(m.stratum == B.TARGET) & m.LABEL.isin([0, 1])].copy()
+    med = float(t.SAMPLE_ID.median())
+    t["original_half"] = np.where(t.SAMPLE_ID <= med, "first", "second")
+    t = t.rename(columns={"LABEL": "original_label", "SAMPLE_ID": "original_sample_id"})
+    t["original_label"] = t.original_label.astype(int)
+    meta = {"batch_id": source_id, "labelled_sheet": B.repo_relative(wp), "labelled_sheet_sha256": got,
+            "answer_key_sha256": rec["answer_key"]["sha256"], "rows_in_sheet": int(len(m)),
+            "decided_science_rows": int(len(t)), "half_cut_at_sample_id": med,
+            "halves": {h: {"n": int((t.original_half == h).sum()),
+                           "originally_accepted": int(t.original_label[t.original_half == h].sum())}
+                       for h in ("first", "second")}}
+    return t, meta
+
+
+def rejudge_arm(study, pool, s: pd.DataFrame, source_id: str, rng: np.random.Generator,
+                controls: tuple[pd.DataFrame, pd.DataFrame, dict, dict], batch_id: str,
+                n_science: int = REJUDGE_SCIENCE, n_controls: int = REJUDGE_CONTROLS) -> tuple[B.Batch, dict]:
+    """A blind second look at `n_science` panels of a labelled rate sheet, half from each half of it.
+
+    The panels are drawn uniformly at random from the sheet's decided science rows, `n_science / 2`
+    from each half, so the second look sees the start and the end of the first sitting equally. Ten
+    positive and ten negative controls come from the same reference the source sheet used. The rows
+    are shuffled, given new positions, and their panels drawn again from the bound cache: nothing on
+    the sheet says which panel this is or what it was called the first time. The sealed key keeps
+    the first verdict, the first position, the half, the stratum and the score.
+
+    It decides nothing on its own. What it measures is how the reviewer's reading moved across the
+    first sitting, and that is what corrects the rate (`eddy_pump.batches.drift_corrected_rate`).
+    """
+    t, meta = source_science_rows(source_id)
+    per_half = n_science // 2
+    parts = []
+    halves = []
+    for h in ("first", "second"):
+        pool_h = t[t.original_half == h]
+        if len(pool_h) < per_half:
+            raise SystemExit(f"{batch_id}: the {h} half of {source_id} holds {len(pool_h)} decided science rows, "
+                             f"fewer than the {per_half} a re-judgement draws from it")
+        take = pool_h.iloc[rng.choice(len(pool_h), per_half, replace=False)].copy()
+        take["inclusion_probability"] = per_half / len(pool_h)
+        parts.append(take)
+        halves.append({"half": h, "N": int(len(pool_h)), "n": int(per_half),
+                       "inclusion_probability": per_half / len(pool_h),
+                       "originally_accepted_in_the_half": int(pool_h.original_label.sum()),
+                       "originally_accepted_in_the_draw": int(take.original_label.sum())})
+    drawn = pd.concat(parts, ignore_index=True)
+    drawn["key"] = B.key3(drawn)
+    # every re-judged panel must still be a candidate of the live pool: the panel is drawn again
+    cols = ["key", "candidate_id", "score", "LATITUDE", "LONGITUDE", "TIME"]
+    science = drawn[["key", "WMO", "CYCLE_NUMBER", "PRES_ADJUSTED", "design_stratum", "inclusion_probability",
+                     "original_label", "original_sample_id", "original_half"]].merge(
+        s[cols], on="key", how="left", validate="one_to_one")
+    if science.candidate_id.isna().any():
+        raise SystemExit(f"{batch_id}: {int(science.candidate_id.isna().sum())} of the panels {source_id} judged are "
+                         f"not in the pool any more — the pool moved under the sheet; refusing")
+    science["original_sample_id"] = science.original_sample_id.astype(int)
+    science["previously_judged"] = True
+    ctrl, pos, neg, pos_meta, neg_meta = blind_controls(controls, science, rng, n_controls)
+    batch = B.Batch(batch_id=batch_id, science=science, controls=ctrl, event_type=pool.event_type, rng=rng,
+                    extra_key_cols=("original_label", "original_sample_id", "original_half"))
+    design = {
+        "role": "rejudgement", "decides": False, "rejudges": source_id,
+        "sampling": {"mode": "probability", "draw": "uniform within each half of the source sheet", "design": "probability",
+                     "frame": f"the {meta['decided_science_rows']:,} decided science rows of {source_id} "
+                              f"(its controls and its uncertain rows are not re-judged)",
+                     "strata": "the two halves of the source sheet, cut at the median position of its decided "
+                               "science rows — the same cut the loader's session read uses",
+                     "inclusion_probability": f"{per_half} / the half's decided science rows, exact and equal within a half",
+                     "allocation": f"{per_half} panels from each half, by design, so the second look sees the start and "
+                                   f"the end of the first sitting equally"},
+        "source": meta, "halves": halves,
+        "answer_key_carries": ["the first verdict (original_label)", "where it sat in the first sheet (original_sample_id)",
+                               "which half that was (original_half)", "its stratum (design_stratum)", "its score"],
+        "what_it_is_for": "it measures how the reviewer's reading moved across the first sitting; it never enters a "
+                          "rate directly, it corrects one (data/labels/audit/RATE_STATUS.md)",
+        "check_before_labelling": "the pool's 42 calibration panels re-labelled blind: PASS, on an earlier day",
+        "steering_labels": {"n": 0, "accepted": 0, "what": "none: a re-judgement is not allocated on a model"},
+        "n_science": int(len(science)), "n_controls": {"positive": int(len(pos)), "negative": int(len(neg))},
+        "floats_in_draw": int(science.WMO.nunique()),
+        "previously_judged_in_draw": int(len(science)),
+        "hours_at_planning_rate": float(len(science) + len(ctrl)) * SECONDS_PER_PANEL / 3600,
+        "strata": [],
+        "controls": {"positive": pos_meta, "negative": neg_meta},
+    }
+    return batch, design
+
+
+# --------------------------------------------------------------------------------------------- #
 # the calibration batches
 # --------------------------------------------------------------------------------------------- #
 def calib_upward_b6(s: pd.DataFrame, crit, rng: np.random.Generator) -> tuple[B.Batch, dict]:
@@ -623,6 +879,12 @@ DESIGNS: dict[str, dict] = {
                            "what": "42 fresh upward calibration panels from the study's own pool"},
     "rate_obduction_02": {"pool": "physical_obduction", "seed_index": 5,
                           "what": f"the {HELD_LEVELS:,} upward levels the first upward draw held back"},
+    "rejudge_obduction_01": {"pool": "physical_obduction", "seed_index": 6, "rejudges": "rate_obduction_01",
+                             "what": f"a blind second look at {REJUDGE_SCIENCE} panels of rate_obduction_01, "
+                                     f"half from each half of that sitting"},
+    "rejudge_subduction_01": {"pool": "physical_subduction", "seed_index": 7, "rejudges": "rate_subduction_01",
+                              "what": f"a blind second look at {REJUDGE_SCIENCE} panels of rate_subduction_01, "
+                                      f"half from each half of that sitting"},
 }
 
 
@@ -661,6 +923,10 @@ class Plan:
     def build(self, bid: str, rng: np.random.Generator) -> tuple[B.Batch, dict]:
         et = DESIGNS[bid]["pool"]
         s = self.frame(et)
+        if DESIGNS[bid].get("rejudges"):
+            # a re-judgement is not allocated on a planned acceptance: it re-shows panels already judged
+            controls = upward_controls(s, self.crit) if et == "physical_obduction" else downward_controls(s)
+            return rejudge_arm(self.study, self.pools[et], s, DESIGNS[bid]["rejudges"], rng, controls, bid)
         p_plan, p_source = self.base_rate
         if bid == "calib_obduction_b6":
             return calib_upward_b6(s, self.crit, rng)
@@ -722,6 +988,7 @@ def record_for(study, pool, crit, batch: B.Batch, design: dict, sheets: dict, se
                             "features_manifest_sha256": sm["features_sha256"]},
         **design,
         "sheet_columns": B.WORKSHEET_COLS, "blind": True,
+        "control_placement": batch.control_placement,
         **sheets,
     }
 
@@ -864,6 +1131,17 @@ def print_plan(bid: str, design: dict, rows: int) -> None:
              if t else ""))
     for s_ in design.get("strata", []):
         print(f"   {s_['design_stratum']:>17}  N {s_['N']:>7,}  p {s_['p_planned']:.3f}  n {s_['n']:>3}  π {s_['inclusion_probability']:.5f}")
+    if design.get("rejudges"):
+        src = design["source"]
+        print(f"   re-judges {design['rejudges']}: {src['decided_science_rows']} decided science rows of "
+              f"{src['rows_in_sheet']}, halves cut at position {src['half_cut_at_sample_id']:.1f}")
+        for h in design["halves"]:
+            print(f"   {h['half']:>17} half  N {h['N']:>4}  n {h['n']:>3}  π {h['inclusion_probability']:.4f}  "
+                  f"first read as real {h['originally_accepted_in_the_half']}/{h['N']}, "
+                  f"{h['originally_accepted_in_the_draw']}/{h['n']} of them in this draw")
+    if rows > MAX_SHEET_ROWS:
+        print(f"   {rows} rows is over the {MAX_SHEET_ROWS}-panel session cap: "
+              f"{len(session_sizes(rows))} sheets of {session_sizes(rows)[0]} or fewer, unless --allow-long")
 
 
 def main() -> None:
@@ -875,6 +1153,9 @@ def main() -> None:
     ap.add_argument("--target", type=float, default=0.15)
     ap.add_argument("--panels", type=int, default=HELD_PANELS,
                     help=f"the panel budget of a fixed-size batch (rate_obduction_02); default {HELD_PANELS}")
+    ap.add_argument("--allow-long", action="store_true",
+                    help=f"write one sheet longer than the {MAX_SHEET_ROWS}-panel session cap instead of splitting "
+                         f"the draw into sittings; the record says so")
     ap.add_argument("--render", action="store_true", help="render the panel PNGs from the bound cache")
     ap.add_argument("--dry-run", action="store_true", help="print the allocation, write nothing")
     ap.add_argument("--list", action="store_true", help="print the batch names this script knows and their state")
@@ -940,16 +1221,20 @@ def main() -> None:
             continue
         pool = plan.pools[DESIGNS[bid]["pool"]]
         bdir = out_root / bid
-        sheets = B.write_sheets(bdir, ws, key, bid)
+        sheets = write_session_sheets(bdir, ws, key, bid, args.allow_long)
         rec = record_for(plan.study, pool, plan.crit, batch, design, sheets, args.seed, sm)
+        parts = sheet_worksheets(bdir, ws, sheets)
         if args.render:
-            n = render(plan.study, pool, bdir, ws)
-            rec["panels"] = {"dir": B.repo_relative(bdir / "panels"), "rendered": n, "of": int(len(ws))}
+            n = sum(render(plan.study, pool, d, w) for d, w in parts)
+            rec["panels"] = {"dir": B.repo_relative(bdir), "rendered": n, "of": int(len(ws)),
+                             "per_sheet": len(parts)}
             print(f"   panels: {n} of {len(ws)}")
-        elif (bdir / "panels").exists():
-            have = {p.name.split("_wmo")[0] for p in (bdir / "panels").rglob("*.png")}
-            n = int(sum(str(sid) in have for sid in ws.SAMPLE_ID))
-            rec["panels"] = {"dir": B.repo_relative(bdir / "panels"), "rendered": n, "of": int(len(ws)),
+        elif any((d / "panels").exists() for d, _ in parts):
+            n = 0
+            for d, w in parts:
+                have = {p.name.split("_wmo")[0] for p in (d / "panels").rglob("*.png")}
+                n += int(sum(str(sid) in have for sid in w.SAMPLE_ID))
+            rec["panels"] = {"dir": B.repo_relative(bdir), "rendered": n, "of": int(len(ws)), "per_sheet": len(parts),
                              "note": "counted from disk; re-run with --render if fewer than the rows"}
         DRAWS.mkdir(parents=True, exist_ok=True)
         (DRAWS / f"{bid}.yaml").write_text(

@@ -94,6 +94,13 @@ it.
   letter's stricter 1.96 σ cut, drawn as `rate_obduction_02` under this study's criterion). No rate
   extrapolates onto it. **Why:** a rate may only cover the levels its sample covers.
   *(Done 2026-09-03; see `docs/STATUS.md` and `docs/PLAN.md`.)*
+- **A draw saves which level of its frame is in which stratum, beside its record; a score file is
+  not provenance.** The 2026-08-27 upward deciles were cut from a score file the 2026-09-03
+  retraining overwrote, so the unsampled levels' strata could not be re-derived. They are now saved
+  as `data/labels/draws/<batch>.strata.parquet`, checked against the record's N per stratum, and
+  read back by `draw_batch.frame_strata`, which refuses to cut deciles again. **Why:** a decile cut
+  from a later score file is a different stratum under the same name. *(Done 2026-09-07; the review
+  that found it is `data/labels/audit/RATE_REVIEW_2026-09-04.md`, finding 1.)*
 - **Every companion subduction event is a reference event;** one the detector misses is a detector
   defect, never a bad label. *(Archive: decisions taken.)*
 

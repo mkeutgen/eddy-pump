@@ -1,0 +1,65 @@
+# data/labels/draws/calib_subduction_v1_pass3.yaml -- a blind re-labelling copy of calib_subduction_v1 (pass 3). Built by pipeline/draw_batch.py
+# --repass; never edited by hand.
+batch_id: calib_subduction_v1_pass3
+built: '2026-09-07T20:19:53-04:00'
+builder: production/build_batches.py
+seed: 20260827
+study_id: net_carbon_v1
+pool_id: net_carbon_v1/physical/subduction
+spec_id: v1:6b8de00d7d53e118
+event_type: physical_subduction
+criterion_version: phys_net_carbon_v1
+criterion_status: ruled
+cache:
+  path: /Users/mk0964/Documents/release/cache_paper/residual_cache_v4
+  fine_grids: 2542
+  fine_grids_sha256: 11fce215c7db6cebabfbb0d233d17ed7b6674e388bcfb5b91153449ec35f8299
+scores_manifest:
+  path: data/features/net_carbon_v1/SCORES_SHA256
+  sha256: 4674461e115005d31b6be8fa6bd4538e3771d0efcc7e408fb620feb264c8c31e
+  built: '2026-08-27T15:41:42'
+  features_manifest_sha256: d1c80c0c08bc776dd55c6434cd22e19ade23b5a5b3c45794ccbc931beb595052
+role: calibration
+decides: false
+sampling:
+  mode: calibration
+  draw: the same levels as calib_subduction_v1, re-shuffled for a blind re-labelling (pass 3)
+  design: null
+  frame: null
+  inclusion_probability: null
+composition:
+  clear_TP: 12 companion-verified events in the top score decile
+  clear_FP: 6 companion-rejected in deciles 0-2 + 6 unlabelled in decile 0
+  borderline: '18 in deciles 5-8: 9 companion-verified, 5 companion-rejected, 4 unlabelled'
+status: 'REF_LABEL is BLANK: to be filled ONCE by consensus adjudication under phys_net_carbon_v1 (who adjudicates:
+  open ruling, docs/PLAN.md), then frozen as phys_net_carbon_v1/anchors/subduction'
+n_science: 0
+n_controls:
+  calibration: 42
+hours_at_planning_rate: 0.3348333333333333
+sheet_columns:
+- LABEL
+- SAMPLE_ID
+- WMO
+- CYCLE_NUMBER
+- PRES_ADJUSTED
+- LATITUDE
+- LONGITUDE
+- TIME
+- EVENT_TYPE
+blind: true
+worksheet:
+  path: results/net_carbon_v1/labeling/calib_subduction_v1_pass3/calib_subduction_v1_pass3.csv
+  sha256: 9b8aa2716047e4f6eacd13ebc8d7059621f33bce63a5ad9220c4c59527b7b96e
+  rows: 42
+answer_key:
+  path: results/net_carbon_v1/labeling/calib_subduction_v1_pass3/ANSWER_KEY_do_not_open.csv
+  sha256: 83ba6f68ba65ad0acce0068dfce0c6dd63e9c9de577ecf8a932b3ee8c8d84334
+  rows: 42
+panels:
+  dir: results/net_carbon_v1/labeling/calib_subduction_v1_pass3/panels
+  rendered: 42
+  of: 42
+reference_of: calib_subduction_v1
+derived_from: calib_subduction_v1
+pass: 3

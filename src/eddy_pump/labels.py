@@ -28,7 +28,8 @@ LABELS = REPO_ROOT / "data" / "labels"
 STUDY_BATCHES = LABELS / "study_batches.yaml"
 STUDY_REVIEWS = LABELS / "study_reviews.parquet"
 
-ROLES = ("analysis", "training", "catalogue", "audit", "calibration", "control", "snapshot", "answer_key")
+ROLES = ("analysis", "training", "catalogue", "audit", "calibration", "control", "snapshot", "answer_key",
+         "rejudgement")   # rejudgement: a blind second look at a labelled sheet; it corrects a rate, never feeds one
 PROBABILITY_DESIGNS = ("probability",)
 _BATCH_COLS = ["batch_id", "role", "decides", "criterion_version", "sampling_design", "sampling_frame"]
 #: The columns both the review row and the batch record carry. Merged under a suffix, checked equal.
