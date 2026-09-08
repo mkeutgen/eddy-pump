@@ -4,6 +4,22 @@ The dated log: one entry per working day, newest first. Every number here was re
 that produces it, on the date shown. The plan is `docs/PLAN.md`; the decisions in force are
 `docs/DECISIONS.md`; the words are defined in `docs/IMPLEMENTATION_NOTES.md`.
 
+## 2026-09-08
+
+**The blind second looks labelled: the upward correction stands, the downward one must be redone.**
+
+- Upward: calibration copy PASS (kappa 0.86, 19/42 vs 18/42); second look clean (controls 8/10 and
+  1/10, interleaved, flat). Of 19 panels first called real, 10 survived; 2 of 80 rejected flipped
+  to real. Corrected upward rate 9.2 % (was 12.9 %), ±48 % relative: the correction's own error,
+  from 19 originally accepted panels, is twice the sampling error.
+- Downward: the calibration copy labelled just before the sheet read stricter than the reference
+  (13/42 vs 17/42, kappa 0.73) and the positive controls came out 3/10. The loader had accepted an
+  older PASS instead; the hole is closed (the most recent copy before a sheet decides). The sheet
+  stays in the table, marked as not counting; the downward rate keeps its drift caveat; no net.
+- Drawn for the redo: `rejudge_subduction_02` (100 fresh panels, stratified by first verdict, error
+  0.023 vs 0.025 uniform) and `rejudge_obduction_02` (pooled with the first upward look: error
+  0.015 vs 0.020), with fresh calibration copies (pass 4). Tests: 171.
+
 ## 2026-09-07
 
 **Plan step 7 prepared: the strata pinned, the session rules enforced, the two blind second looks drawn.**

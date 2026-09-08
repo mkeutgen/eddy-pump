@@ -2,7 +2,8 @@
 """Load a labelled study sheet into the label table's study layer.
 
 usage  load_batch.py BATCH_ID [--allow-unfinished] [--replace] [--freeze-reference HOW] [--accept-drift]
-       (`make load BATCH=<batch id>`)
+                     [--accept-calibration-drift [--count-for-correction]]
+       (`make load BATCH=<batch id>`, `make load BATCH=<batch id> FLAGS="--replace"`)
 reads  data/labels/draws/<BATCH_ID>.yaml (the draw record), the worksheet(s) and the sealed key(s)
        under results/net_carbon_v1/labeling/<BATCH_ID>/
 writes results/net_carbon_v1/labeling/<BATCH_ID>/<sheet>_LABELLED_<stamp>.csv (the frozen sheet, not in git)
@@ -16,11 +17,14 @@ A draw longer than the 120-panel session cap is written as several sheets of one
 probabilities, so the number is the one the single sheet would have given. Position is read sheet by
 sheet, because drift is drift within one sitting.
 
-Two things stop a rate batch here. Its 42 calibration panels must have been re-labelled PASS before
-its sheet (a refusal; on an earlier day is a warning). And acceptance must not fall from the first
-half of a sitting to the second with the stratum held fixed (p < 0.01): if it does, the batch is
-loaded only once a blind re-judgement of it has been drawn, or with --accept-drift, which the record
-then carries.
+Two things stop a rate sheet or a second look here. The LAST scored copy of its pool's 42
+calibration panels labelled before the sheet must have said PASS — the copy labelled before a
+session is what decides whether that session counts, so an earlier copy that passed is no defence
+(a refusal, unless --accept-calibration-drift; on an earlier day is a warning). And acceptance must
+not fall from the first half of a sitting to the second with the stratum held fixed (p < 0.01): if
+it does, the batch is loaded only once a blind re-judgement of it has been drawn, or with
+--accept-drift, which the record then carries. A second look loaded over a calibration copy that
+did not pass keeps its rows but corrects no rate (`counts_for_correction: false`).
 
 A draw record written in another checkout carries that checkout's absolute paths; the sheet and the
 key are found through `batches.resolve_recorded_path`, which keeps the part from `results/` onward.
@@ -334,6 +338,114 @@ def rejudgements_of(batch_id: str) -> list[dict]:
     return out
 
 
+def calibration_copies(pool_id: str) -> list[dict]:
+    """Every scored blind copy of that pool's 42 calibration panels, oldest first.
+
+    Two kinds of copy are left out because neither is a check. One whose set had no decided answers
+    when it was loaded carries no verdict at all. And the pass whose own labels became the frozen
+    answers scores κ = 1 by construction, which says nothing about whether the reading held; the
+    first real check of such a set is the next blind copy.
+    """
+    import yaml
+
+    out = []
+    for p in sorted(DRAWS.glob("calib_*.labelled.yaml")):
+        l = yaml.safe_load(p.read_text())
+        rp = DRAWS / f"{l['batch_id']}.yaml"
+        if not rp.exists() or yaml.safe_load(rp.read_text()).get("pool_id") != pool_id:
+            continue
+        s = l.get("session") or {}
+        if not s.get("verdict") or s.get("reference_is_this_pass"):
+            continue
+        acc = (round(s["base_rate_observed"] * s["n_decided"]) if s.get("n_decided") else 0)
+        ref = s.get("base_rate_reference") or 0.0
+        out.append({"batch": l["batch_id"], "worksheet_mtime": l.get("worksheet_mtime", ""),
+                    "verdict": s["verdict"], "kappa": s.get("kappa"),
+                    "base_rate_you": f"{int(acc)}/{s.get('n_reference')}",
+                    "base_rate_reference": f"{round(ref * s.get('n_reference', 0))}/{s.get('n_reference')}",
+                    "base_rate_drift_relative": (float(s["base_rate_observed"] / ref - 1.0) if ref else None),
+                    "undecided": int(s.get("n_undecided") or 0)})
+    # by the moment each was labelled, not by the text: the records carry local times whose offsets
+    # differ, and "2026-09-04T16:20:58-05:00" is later than "2026-09-04T17:00:00-04:00" as a string
+    # and earlier as a moment.
+    return sorted(out, key=lambda c: pd.Timestamp(c["worksheet_mtime"]))
+
+
+def calibration_check_for(rec: dict, ws_first_saved: str, accept_drift: bool,
+                          count_for_correction: bool) -> dict:
+    """Which reading this sheet was labelled under, and whether a number may rest on it.
+
+    The protocol's check is a fresh blind copy of the pool's 42 calibration panels, labelled before
+    the session. So the copy that decides is the LAST one labelled before this sheet was saved — not
+    the last one that passed. If that copy read DRIFTED, the session it checks does not count, and
+    the sheet is refused: label a fresh copy on another day and load again.
+    `--accept-calibration-drift` loads it anyway and the record carries the copy and its numbers; a
+    re-judgement loaded that way does not correct a rate unless `--count-for-correction` says so as
+    well.
+    """
+    copies = calibration_copies(rec["pool_id"])
+    before = [c for c in copies if c["worksheet_mtime"]
+              and pd.Timestamp(c["worksheet_mtime"]) < pd.Timestamp(ws_first_saved)]
+    set_id = (copies[-1]["batch"].split("_pass")[0] if copies else f"calib_{rec['pool_id'].split('/')[-1]}_v1")
+    what_to_do = (f"Label a fresh blind copy of the 42 panels on another day and load again:\n"
+                  f"    python pipeline/draw_batch.py --repass {set_id}\n"
+                  f"    make calibrate SHEET=<the labelled copy>      # it must say PASS\n"
+                  f"    make load BATCH={rec['batch_id']} FLAGS=--replace\n"
+                  f"To load this sheet anyway, pass --accept-calibration-drift: the rows go in, the record says which "
+                  f"copy read what, and a re-judgement loaded that way does not correct a rate.")
+    if not before:
+        if not accept_drift:
+            raise SystemExit(f"{rec['batch_id']}: no scored copy of {rec['pool_id']}'s 42 calibration panels was "
+                             f"labelled before this sheet ({ws_first_saved}) — the protocol's check.\n{what_to_do}")
+        check = {"batch": None, "verdict": None, "kappa": None, "base_rate_you": None,
+                 "base_rate_reference": None, "sheet_first_saved": ws_first_saved,
+                 "why": "no calibration copy of this pool was labelled before the sheet"}
+    else:
+        check = dict(before[-1])
+        check["sheet_first_saved"] = ws_first_saved
+        # The protocol wants the copy finished on an EARLIER DAY than the sheet, so the reading it
+        # checks is yesterday's habit and not this afternoon's. Only a warning: the reviewer may
+        # legitimately do both in one day.
+        same_day = check["worksheet_mtime"][:10] >= ws_first_saved[:10]
+        check["earlier_day"] = not same_day
+        if same_day:
+            check["warning"] = (f"the calibration copy was labelled on {check['worksheet_mtime'][:10]}, the same day "
+                                f"as this sheet — the protocol asks for an earlier day, so that the reading it checks "
+                                f"is not the one the sheet was labelled in")
+            print("WARNING:", check["warning"])
+        if len(before) > 1:
+            check["copies_before_this_sheet"] = [{k: c[k] for k in ("batch", "worksheet_mtime", "verdict")}
+                                                 for c in before]
+    check["accepted_by_hand"] = False
+    said = ""
+    if check.get("verdict") != "PASS":
+        drift = check.get("base_rate_drift_relative")
+        if check.get("batch") is None:
+            said = str(check.get("why"))
+        else:
+            said = (f"{check['batch']} read {check['verdict']}: {check['base_rate_you']} accepted against the "
+                    f"reference's {check['base_rate_reference']}"
+                    + (f", {abs(drift):.0%} relative {'stricter' if drift < 0 else 'looser'}" if drift is not None else "")
+                    + (f", κ {check['kappa']:.2f}" if check.get("kappa") is not None else ""))
+        if not accept_drift:
+            raise SystemExit(f"{rec['batch_id']}: the calibration copy labelled before this sheet says the reading had "
+                             f"moved — {said}. The copy labelled before a session is what decides whether that session "
+                             f"counts, and this one did not pass.\n{what_to_do}")
+        check["accepted_by_hand"] = True
+        check["accepted_by_hand_means"] = f"loaded with --accept-calibration-drift: {said}"
+        print("WARNING: loaded although the calibration copy did not pass —", said)
+    if rec["role"] == "rejudgement":
+        counts = bool(check.get("verdict") == "PASS" or count_for_correction)
+        check["counts_for_correction"] = counts
+        if not counts:
+            check["does_not_count_because"] = (
+                f"the calibration copy labelled before this second look did not pass ({said}); a second look read "
+                f"under a reading known to have moved cannot say how another reading moved")
+        elif check.get("verdict") != "PASS":
+            check["counts_by_hand"] = "--count-for-correction was given although the calibration copy did not pass"
+    return check
+
+
 def refuse_if_the_reading_drifted(rec: dict, sess: dict, accept_drift: bool) -> None:
     """A rate batch whose acceptance fell across the sitting is not loaded on its own word.
 
@@ -387,6 +499,12 @@ def main() -> None:
     ap.add_argument("--accept-drift", action="store_true",
                     help="load a rate batch whose acceptance fell within the sitting anyway; the record says so, and "
                          "the rate it feeds carries no drift correction until a blind re-judgement is loaded")
+    ap.add_argument("--accept-calibration-drift", action="store_true",
+                    help="load a sheet although the calibration copy labelled before it did not pass; the record "
+                         "carries that copy and its numbers, and a re-judgement loaded this way corrects no rate")
+    ap.add_argument("--count-for-correction", action="store_true",
+                    help="with --accept-calibration-drift, let a re-judgement whose calibration copy did not pass "
+                         "correct a rate all the same; the record says it was allowed by hand")
     args = ap.parse_args()
     bid = args.batch_id
     rec = yaml.safe_load((DRAWS / f"{bid}.yaml").read_text())
@@ -405,34 +523,16 @@ def main() -> None:
             raise SystemExit("--freeze-reference is for a calibration batch")
         print("reference frozen:", freeze_reference(rec, wp, key, ws, args.freeze_reference))
 
-    # The check is hard: an analysis batch is loaded only if the 42 calibration panels of the same
-    # pool were re-labelled PASS before its sheet was written (docs/LABELING_PROTOCOL.md). The first
-    # batch met it by file times alone; now nothing else is accepted.
-    anchor = None
+    # The check is hard: a rate sheet or a second look is loaded only if the last scored copy of the
+    # pool's 42 calibration panels labelled before it said PASS (docs/LABELING_PROTOCOL.md). Not an
+    # earlier copy that passed — the copy labelled before a session is what decides whether that
+    # session counts.
+    calibration = None
     if rec["role"] in ("analysis", "rejudgement"):
-        cands = []
-        for p in sorted(DRAWS.glob("calib_*.labelled.yaml")):
-            l = yaml.safe_load(p.read_text())
-            r0 = yaml.safe_load((DRAWS / f"{l['batch_id']}.yaml").read_text())
-            if r0["pool_id"] == rec["pool_id"] and l["session"].get("verdict") == "PASS" and l.get("worksheet_mtime", "") < ws_mtime:
-                cands.append((l["worksheet_mtime"], l["batch_id"], l["session"]["kappa"]))
-        if not cands:
-            raise SystemExit(f"{bid}: no calibration set of {rec['pool_id']} re-labelled PASS before this sheet "
-                             f"({ws_mtime}) — the protocol's check; label the 42 calibration panels first")
-        anchor = {"batch_id": cands[-1][1], "worksheet_mtime": cands[-1][0], "kappa": cands[-1][2]}
-        # The protocol wants the calibration copy finished on an EARLIER DAY than the sheet, so the
-        # reading it checks is yesterday's habit and not this afternoon's. Only a warning: the
-        # reviewer may legitimately do both in one day.
-        same_day = anchor["worksheet_mtime"][:10] >= ws_first_saved[:10]
-        anchor["earlier_day"] = not same_day
-        anchor["sheet_first_saved"] = ws_first_saved
-        if same_day:
-            anchor["warning"] = (f"the calibration copy was labelled on {anchor['worksheet_mtime'][:10]}, the same day "
-                                 f"as this sheet — the protocol asks for an earlier day, so that the reading it checks "
-                                 f"is not the one the sheet was labelled in")
-            print("WARNING:", anchor["warning"])
+        calibration = calibration_check_for(rec, ws_first_saved, args.accept_calibration_drift,
+                                            args.count_for_correction)
 
-    sess = session_block(rec, parts, ws, key, calibration=anchor)
+    sess = session_block(rec, parts, ws, key, calibration=calibration)
     refuse_if_the_reading_drifted(rec, sess, args.accept_drift)
     sheet_sha = joint_sha([{"sheet_id": x["sheet_id"], "sha256": x["sha256"]} for x in parts])
     frozen = []
@@ -511,14 +611,14 @@ def main() -> None:
         "# Built by pipeline/load_batch.py from the draw records and the labelled sheets; never edited by hand.\n"
         + yaml.safe_dump(raw, sort_keys=False, allow_unicode=True, width=110), encoding="utf-8")
     labelled = {"batch_id": bid, "ingested": batch["ingested"], "worksheet_mtime": ws_mtime,
-                "worksheet_first_saved": ws_first_saved, "anchor": anchor,
+                "worksheet_first_saved": ws_first_saved, "calibration_check": calibration,
                 "labelled_sheet": {"path": frozen_path, "sha256": sheet_sha,
                                    "sheets": [{"sheet_id": x["sheet_id"], "path": B.repo_relative(f), "sha256": x["sha256"],
                                                "rows": x["rows"], "mtime": x["mtime"]}
                                               for x, f in zip(parts, frozen)] if len(parts) > 1 else None},
                 "rows": int(len(m)), "decided": int(lab.isin([0, 1]).sum()), "accepted": int((lab == 1).sum()),
                 "uncertain": int((lab == 2).sum()), "blank": int(lab.isna().sum()), "session": sess}
-    batch["anchor"] = anchor
+    batch["calibration_check"] = calibration
     batch["worksheet_mtime"] = ws_mtime
     (DRAWS / f"{bid}.labelled.yaml").write_text(
         f"# data/labels/draws/{bid}.labelled.yaml -- the session read and the hashes of the labelled sheet. Built by\n"

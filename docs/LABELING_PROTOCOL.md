@@ -62,6 +62,14 @@ the two limbs changes sign across that band.
 - **The calibration copy is labelled on an earlier day than the sheet.** Doing both in one afternoon
   makes the check the same reading it is meant to test. The loader warns rather than refuses: it may
   be the right thing to do on the day.
+- **The last calibration copy labelled before a sheet is the one that decides whether that sheet
+  counts.** Not an earlier copy that passed. If it read DRIFTED, the session does not count: label a
+  fresh copy on another day and load again. The loader refuses, naming the copy, what you called and
+  what the saved answers say. `--accept-calibration-drift` loads it anyway — the rows go in, and the
+  record carries the copy, its verdict, its κ and both base rates. A second look loaded that way
+  corrects no rate (`counts_for_correction: false`) unless `--count-for-correction` is given too.
+  This is the hole that let the downward second look of 2026-09-08 through: the loader found a copy
+  that had passed a week earlier and ignored the one labelled that morning.
 - **Every rate sheet gets a blind second look afterwards** — 100 of its own panels, re-shown and
   re-judged (see below). Draw it before loading the batch.
 
@@ -69,7 +77,7 @@ What the loader refuses, and what it only records:
 
 | what it reads | what happens |
 |---|---|
-| the 42 calibration panels were not re-labelled PASS before the sheet | refuses |
+| the last calibration copy labelled before the sheet did not say PASS, or there is none | refuses, unless `--accept-calibration-drift` — which the record then carries, and a second look loaded that way corrects no rate |
 | acceptance fell from the first half of a sitting to the second, holding the stratum fixed (p < 0.01) | refuses, unless a blind second look of that batch has been drawn, or `--accept-drift` is given — which the record then carries |
 | a control arm is bunched into part of the sheet (p < 0.01) | records it, loud |
 | the calibration copy was labelled the same day as the sheet | records it, loud |
@@ -99,6 +107,8 @@ The names it knows today:
 | `rate_subduction_01` | the downward rate over the whole pool, ten score deciles |
 | `rejudge_obduction_01` | a blind second look at 100 panels of `rate_obduction_01`, 50 from each half |
 | `rejudge_subduction_01` | a blind second look at 100 panels of `rate_subduction_01`, 50 from each half |
+| `rejudge_subduction_02` | the downward second look again: 100 fresh panels of `rate_subduction_01`, shared out by first verdict × half |
+| `rejudge_obduction_02` | a second upward second look, the same shape; optional, it narrows the upward correction |
 
 ## What a batch is
 
@@ -137,6 +147,18 @@ make load BATCH=rejudge_obduction_01
 make rates
 ```
 
+**A better shape for the redo.** The correction is a weighted sum of four numbers: how often the
+second look calls real a panel the first look called real, and one it called not real, in each half
+of the sitting. Its error is smallest when the panels go where the number is worth most and least
+certain — panels ∝ the cell's weight in the corrected rate × √(q(1−q)) of its flip rate, at least 15
+panels in each cell. A uniform draw gave only 19 of its 100 panels to panels first called real; the
+shaped draw gives about 37, and the correction's error falls from 0.025 to 0.023 on the downward
+limb. It does not go further than that: four fifths of the weight sits on the panels first called
+not real, because that is four fifths of the pool, so a draw with 60 of its 100 panels among the
+accepted ones is *worse* than the uniform one. `rejudge_*_02` is drawn this way, leaving out the
+panels the first second look already saw. Two second looks of one sheet are read together: their
+counts add and the error bar narrows by about √2.
+
 **What it measures.** How often the second look agrees with the first, split by which half of the
 first sitting the panel came from. If the reading held, the two halves agree the same way. If it
 moved, panels from the second half come back differently — and by how much is the size of the drift.
@@ -151,7 +173,9 @@ panel of that first verdict from that half. The rate is then formed exactly as b
 both the sampling error of the sheet and how well 100 panels pin the second look. Read it as *the
 rate if the reviewer had read every panel the way the blind second look reads it*. The net of the
 two limbs — downward minus upward, in accepted candidate levels — is quoted only when both limbs
-carry that correction. Until then `RATE_STATUS.md` says the net is not quoted.
+carry that correction. Until then `RATE_STATUS.md` says the net is not quoted, and names what each
+limb is waiting for. A second look whose own calibration copy did not pass corrects nothing: its rows
+stay in the label table, and the report says the corrected rate is not reported and why.
 
 ## What the labels become
 

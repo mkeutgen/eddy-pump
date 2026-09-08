@@ -15,7 +15,9 @@ loaded, the same rate corrected for how the reviewer's reading moved across that
 if every panel had been read the way the blind second look reads it, with the sampling error and the
 re-judgement's own error added in quadrature (`rate_drift_corrected*`). The net of the two limbs,
 downward minus upward in accepted candidate levels, is quoted only when both limbs carry that
-correction — the 2026-09-04 review found the net changing sign across the drift band.
+correction — the 2026-09-04 review found the net changing sign across the drift band. A second look
+whose own calibration copy did not pass corrects nothing: its rows stay in the label table, and the
+report says the corrected rate is not reported and names that copy's numbers.
 """
 
 from __future__ import annotations
@@ -42,11 +44,19 @@ SECONDS_PER_PANEL = 28.7
 N_BOOT_REJUDGEMENT = 3000   # resamples of a re-judgement, for the drift correction's own error bar
 
 
-def loaded_rejudgements(batch_ids) -> dict:
-    """The blind re-judgements that have been labelled and loaded, by the batch each re-judges."""
+def loaded_rejudgements(batch_ids) -> tuple[dict, list]:
+    """The blind re-judgements that have been labelled and loaded, by the batch each re-judges.
+
+    A second look only corrects a rate if the calibration copy labelled before it passed: its record
+    says so (`calibration_check.counts_for_correction`). One that does not count keeps its rows in
+    the label table and is returned separately, with the reason, so the report can say why the
+    corrected rate is missing. Several second looks of one sheet are kept in the order they were
+    labelled; their cells are pooled.
+    """
     import yaml
 
-    out = {}
+    out: dict[str, list] = {}
+    skipped = []
     for path in sorted(DRAWS.glob("*.labelled.yaml")):
         bid = path.name.replace(".labelled.yaml", "")
         rec_path = DRAWS / f"{bid}.yaml"
@@ -55,10 +65,22 @@ def loaded_rejudgements(batch_ids) -> dict:
         rec = yaml.safe_load(rec_path.read_text())
         if rec.get("role") != "rejudgement" or rec.get("rejudges") not in set(batch_ids):
             continue
-        block = (yaml.safe_load(path.read_text())["session"] or {}).get("rejudgement")
-        if block:
-            out[rec["rejudges"]] = {"batch_id": bid, **block}
-    return out
+        lab = yaml.safe_load(path.read_text())
+        block = (lab["session"] or {}).get("rejudgement")
+        if not block:
+            continue
+        cal = lab.get("calibration_check") or lab.get("anchor") or {}
+        if cal.get("counts_for_correction") is False:
+            skipped.append({"batch_id": bid, "rejudges": rec["rejudges"],
+                            "calibration_copy": cal.get("batch"), "verdict": cal.get("verdict"),
+                            "base_rate_you": cal.get("base_rate_you"), "base_rate_reference": cal.get("base_rate_reference"),
+                            "drift": cal.get("base_rate_drift_relative"), "labelled": cal.get("worksheet_mtime"),
+                            "kappa": cal.get("kappa"), "why": cal.get("does_not_count_because")})
+            continue
+        out.setdefault(rec["rejudges"], []).append({"batch_id": bid, "labelled": lab.get("worksheet_mtime", ""), **block})
+    for b in out:
+        out[b].sort(key=lambda x: x["labelled"])
+    return out, skipped
 
 
 def halves_of(A: pd.DataFrame) -> pd.Series:
@@ -86,17 +108,18 @@ def corrected_rate_of(A: pd.DataFrame, N_h: dict, rejudged: dict, se_design: flo
         return None
     half = halves_of(A)
     cells, cell = {}, pd.Series("", index=A.index, dtype=object)
-    for b, block in rejudged.items():
+    for b, blocks in rejudged.items():
         m = A.batch_id == b
-        for name, c in block["cells"].items():
-            cells[f"{b}|{name}"] = c
+        for block in blocks:      # two second looks of one sheet: their counts pool, cell by cell
+            for name, c in block["cells"].items():
+                cells.setdefault(f"{b}|{name}", []).append({"batch_id": block["batch_id"], **c})
         cell.loc[m] = b + "|" + A.decision[m].astype(int).astype(str) + "|" + half[m]
     res = B.drift_corrected_rate(A.decision.to_numpy(float), cell.to_numpy(), A.design_stratum.to_numpy(),
                                  N_h, cells, se_design, n_boot=N_BOOT_REJUDGEMENT, seed=2)
-    res["rejudgements"] = {b: {"batch_id": x["batch_id"], "n": x["overall"]["n"],
-                               "accept_to_reject": x["overall"]["accept_to_reject"],
-                               "reject_to_accept": x["overall"]["reject_to_accept"]}
-                           for b, x in rejudged.items()}
+    res["rejudgements"] = {b: [{"batch_id": x["batch_id"], "n": x["overall"]["n"],
+                                "accept_to_reject": x["overall"]["accept_to_reject"],
+                                "reject_to_accept": x["overall"]["reject_to_accept"]} for x in blocks]
+                           for b, blocks in rejudged.items()}
     res["batches_not_rejudged"] = sorted(set(A.batch_id) - set(rejudged))
     return res
 
@@ -131,8 +154,25 @@ def main() -> None:
         # cache block are checked before the number a rate divides by is taken from it
         N_pool = len(C.read_saved(study, pool, verify=True, columns=C.KEYS)[0])
         # the rate the blind re-judgements imply, beside the rate as labelled
-        rejudged = loaded_rejudgements(A.batch_id.unique())
+        rejudged, not_counted = loaded_rejudgements(A.batch_id.unique())
         corr = corrected_rate_of(A, N_h, rejudged, res["se_design"])
+        # why a limb has no corrected rate, in the reviewer's own terms
+        no_correction = None
+        if corr is None:
+            if not_counted:
+                x = not_counted[0]
+                how = ("stricter than" if (x.get("drift") or 0) < 0 else "looser than") if x.get("drift") else "unlike"
+                no_correction = (f"not reported — the calibration copy labelled before {x['batch_id']} "
+                                 + (f"(on {x['labelled'][:10]}) " if x.get("labelled") else "")
+                                 + f"read {how} the reference: {x['base_rate_you']} accepted against the reference's "
+                                 f"{x['base_rate_reference']}"
+                                 + (f", κ {x['kappa']:.2f}" if x.get("kappa") is not None else "")
+                                 + f" — so that second look does not correct a rate. Its rows stay in the label "
+                                 f"table. A fresh second look, labelled after a calibration copy that passes, is "
+                                 f"what fills this in.")
+            else:
+                no_correction = ("not available — no blind re-judgement of this limb has been labelled and "
+                                 "loaded yet (docs/PLAN.md)")
         # The rate is over the region the sample actually covers (N_open). N_open == N_pool when the
         # whole pool is sampled (the downward limb); when only part is (the upward limb, whose former
         # held region awaits a fresh draw), the uncovered remainder is reported, never extrapolated.
@@ -176,10 +216,11 @@ def main() -> None:
                                 if nc.get("with_score_above_0p5", {}).get("n") else ""))
             elif nc["n"] and nc["accepted"] / nc["n"] > nc["ceiling"]:
                 flags.append(f"{b}: negative controls {nc['accepted']}/{nc['n']} above the {nc['ceiling']:.0%} ceiling — read loose")
-        anchor = next((l.get("anchor") for l in labelled.values() if l.get("anchor")), None)
+        cal = next((l.get("calibration_check") or l.get("anchor") for l in labelled.values()
+                    if l.get("calibration_check") or l.get("anchor")), None)
         pace = None
-        if anchor and anchor.get("worksheet_mtime"):
-            t0 = pd.Timestamp(anchor["worksheet_mtime"]); t1 = pd.Timestamp(next(iter(labelled.values()))["worksheet_mtime"])
+        if cal and cal.get("worksheet_mtime"):
+            t0 = pd.Timestamp(cal["worksheet_mtime"]); t1 = pd.Timestamp(next(iter(labelled.values()))["worksheet_mtime"])
             pace = float((t1 - t0).total_seconds() / next(iter(labelled.values()))["rows"])
         denom = (f"candidate levels of the pool ({N_pool:,})" if unsampled == 0 else
                  f"candidate levels sampled ({N_open:,}) of the pool's {N_pool:,}; {unsampled:,} not yet sampled")
@@ -197,8 +238,12 @@ def main() -> None:
                "drift_band_first_half": halves.get("first"), "drift_band_second_half": halves.get("second"),
                "open_panels_needed_at_realised_variance": n_needed, "open_panels_more": more,
                "hours_more_at_planning_pace": (more * SECONDS_PER_PANEL / 3600) if more is not None else None,
-               "realised_seconds_per_panel": pace, "anchor_batch": anchor["batch_id"] if anchor else None,
-               "rejudgement_batches": ",".join(sorted(x["batch_id"] for x in rejudged.values())) or None,
+               "realised_seconds_per_panel": pace,
+               "calibration_batch": (cal.get("batch") or cal.get("batch_id")) if cal else None,
+               "calibration_verdict": cal.get("verdict") if cal else None,
+               "rejudgement_batches": ",".join(sorted(x["batch_id"] for xs in rejudged.values() for x in xs)) or None,
+               "rejudgements_not_counted": ",".join(x["batch_id"] for x in not_counted) or None,
+               "no_drift_correction_because": no_correction,
                "rate_drift_corrected": corr["rate"] if corr else None,
                "rate_drift_corrected_se_design": corr["se_design"] if corr else None,
                "rate_drift_corrected_se_rejudgement": corr["se_rejudgement"] if corr else None,
@@ -209,7 +254,8 @@ def main() -> None:
                "net_accepted_levels_drift_corrected": None, "net_accepted_levels_half_width_95": None,
                "flags": " | ".join(flags)}
         rows.append(row)
-        limbs[pool.pool_id] = {"row": row, "N": N_open, "corr": corr, "rate": p_pool, "se": se_pool}
+        limbs[pool.pool_id] = {"row": row, "N": N_open, "corr": corr, "rate": p_pool, "se": se_pool,
+                               "why": no_correction}
         md.append(f"## `{pool.pool_id}` — {p_pool:.1%} of {N_open:,} candidate levels, ±{hw_rel:.0%} relative (target ±{TARGET_REL:.0%})\n")
         md.append(f"Sampled region ({N_open:,} levels): stratified mean {res['rate']:.4f}, design-based SE {res['se_design']:.4f} "
                   f"(stratified bootstrap {res['se_stratified_bootstrap']:.4f}; the naive float bootstrap {res['se_naive_float_bootstrap']:.4f} is the "
@@ -227,19 +273,26 @@ def main() -> None:
             md.append(f"**Drift-corrected**: {corr['rate']:.4f} ± {corr['half_width_95']:.4f} "
                       f"(≈ {corr['rate'] * N_open:,.0f} accepted levels) — the rate if the reviewer had read every panel "
                       f"the way the blind re-judgement reads it. Error bar: the sampling error {corr['se_design']:.4f} and "
-                      f"how well {', '.join(x['batch_id'] for x in rejudged.values())} pins the second look "
+                      f"how well {', '.join(x['batch_id'] for xs in rejudged.values() for x in xs)} pins the second look "
                       f"{corr['se_rejudgement']:.4f}, added in quadrature. "
                       f"{corr['rows_corrected']} of {corr['rows_corrected'] + corr['rows_kept_as_labelled']} science rows "
                       f"are corrected"
                       + (f"; {', '.join(corr['batches_not_rejudged'])} has no re-judgement and keeps its verdicts as "
-                         f"labelled" if corr["batches_not_rejudged"] else "") + ".\n")
-            md.append("| what the reviewer first called it | half of the sitting | re-judged | called real again |\n"
-                      "|---|---|---:|---:|\n" + "".join(
-                          f"| {'real' if k.split('|')[1] == '1' else 'not real'} | {k.split('|')[2]} | {v['n']} | "
-                          f"{v['accepted']} ({v['rate']:.0%}) |\n" for k, v in sorted(corr["cell_rates"].items())))
+                         f"labelled" if corr["batches_not_rejudged"] else "")
+                      + (f". {', '.join(x['batch_id'] for x in not_counted)} is left out: its own calibration copy "
+                         f"did not pass" if not_counted else "") + ".\n")
+            table = ["| what the reviewer first called it | half of the sitting | re-judged | called real again | "
+                     "second looks |\n|---|---|---:|---:|---|\n"]
+            for k, v in sorted(corr["cell_rates"].items()):
+                src, first, when = k.split("|")
+                parts = v.get("pooled_from") or [{"batch_id": rejudged[src][0]["batch_id"], "n": v["n"],
+                                                  "accepted": v["accepted"]}]
+                table.append(f"| {'real' if first == '1' else 'not real'} | {when} | {v['n']} | "
+                             f"{v['accepted']} ({v['rate']:.0%}) | "
+                             + ", ".join(f"{x['batch_id']} {x['accepted']}/{x['n']}" for x in parts) + " |\n")
+            md.append("".join(table))
         else:
-            md.append("**Drift-corrected**: not available — no blind re-judgement of this limb has been labelled and "
-                      "loaded yet (docs/PLAN.md).\n")
+            md.append(f"**Drift-corrected**: {no_correction}\n")
         if flags:
             md.append("Session flags (recorded, never a filter):\n" + "".join(f"- {f}\n" for f in flags))
         by = A.groupby("design_stratum").decision.agg(["size", "sum", "mean"])
@@ -270,9 +323,10 @@ def main() -> None:
         md.append("## The net — not quoted\n")
         md.append("The net of the two limbs is not quoted. The 2026-09-04 review found the reviewer's reading moving "
                   "within each of the two first sittings by two to three times the sampling error, and the net changes "
-                  "sign across that band. It is quoted once a blind re-judgement of "
-                  + " and ".join(sorted(k.split("/")[-1] for k, v in limbs.items() if not v["corr"]))
-                  + " has been labelled and loaded (docs/PLAN.md).\n")
+                  "sign across that band. Both limbs need a second look that counts before it is quoted "
+                  "(docs/PLAN.md). Missing on:\n"
+                  + "".join(f"- **{k.split('/')[-1]}** — {v['why']}\n"
+                            for k, v in limbs.items() if not v["corr"]))
 
     T = pd.DataFrame(rows)
     T.to_csv(OUT / "rate_status.csv", index=False)

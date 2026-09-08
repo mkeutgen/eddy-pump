@@ -1,4 +1,4 @@
-# RATE STATUS — the physical rates from the human labels *(2026-09-07)*
+# RATE STATUS — the physical rates from the human labels *(2026-09-08)*
 
 Producer: `pipeline/rates.py`. Criterion `phys_net_carbon_v1`. Every rate is a weighted Hájek mean of human verdicts with declared inclusion probabilities; the denominator is the candidate levels the sample covers. The next batch goes to **`net_carbon_v1/physical/obduction` (the wider half-width)**.
 
@@ -8,7 +8,14 @@ Sampled region (186,275 levels): stratified mean 0.1288, design-based SE 0.0109 
 
 Rate: **0.1288 ± 0.0213** (≈ 23,996 accepted candidate LEVELS in the sampled region — not events; a cycle-level estimand needs its own denominator). Sampling precision only, at the session-average instrument. At the variance realised, the sample needs about **808 target panels** for ±15%: 143 more (1.1 h at the planning pace, 0.3 h at the realised 7 s/panel). **Drift band**: the rate would read 0.146 if the whole session had read like its first half, 0.108 like its second — a systematic term the sampling interval does not contain.
 
-**Drift-corrected**: not available — no blind re-judgement of this limb has been labelled and loaded yet (docs/PLAN.md).
+**Drift-corrected**: 0.0923 ± 0.0440 (≈ 17,187 accepted levels) — the rate if the reviewer had read every panel the way the blind re-judgement reads it. Error bar: the sampling error 0.0109 and how well rejudge_obduction_01 pins the second look 0.0196, added in quadrature. 576 of 665 science rows are corrected; rate_obduction_02 has no re-judgement and keeps its verdicts as labelled.
+
+| what the reviewer first called it | half of the sitting | re-judged | called real again | second looks |
+|---|---|---:|---:|---|
+| not real | first | 39 | 1 (3%) | rejudge_obduction_01 1/39 |
+| not real | second | 41 | 1 (2%) | rejudge_obduction_01 1/41 |
+| real | first | 11 | 5 (45%) | rejudge_obduction_01 5/11 |
+| real | second | 8 | 5 (62%) | rejudge_obduction_01 5/8 |
 
 Session flags (recorded, never a filter):
 - rate_obduction_01: acceptance fell with position (Mann-Whitney p = 0.006; 28% in the first quarter, 15% in the last; the rate would read 0.146 like the first half, 0.108 like the second)
@@ -39,7 +46,7 @@ Sampled region (133,307 levels): stratified mean 0.1874, design-based SE 0.0131 
 
 Rate: **0.1874 ± 0.0257** (≈ 24,980 accepted candidate LEVELS in the sampled region — not events; a cycle-level estimand needs its own denominator). Sampling precision only, at the session-average instrument. At the variance realised, the sample needs about **652 target panels** for ±15%: 0 more. **Drift band**: the rate would read 0.223 if the whole session had read like its first half, 0.149 like its second — a systematic term the sampling interval does not contain.
 
-**Drift-corrected**: not available — no blind re-judgement of this limb has been labelled and loaded yet (docs/PLAN.md).
+**Drift-corrected**: not reported — the calibration copy labelled before rejudge_subduction_01 (on 2026-09-08) read stricter than the reference: 13/42 accepted against the reference's 17/42, κ 0.73 — so that second look does not correct a rate. Its rows stay in the label table. A fresh second look, labelled after a calibration copy that passes, is what fills this in.
 
 Session flags (recorded, never a filter):
 - rate_subduction_01: acceptance fell with position (Mann-Whitney p = 0.005; 27% in the first quarter, 19% in the last; the rate would read 0.223 like the first half, 0.149 like the second)
@@ -59,4 +66,5 @@ Session flags (recorded, never a filter):
 
 ## The net — not quoted
 
-The net of the two limbs is not quoted. The 2026-09-04 review found the reviewer's reading moving within each of the two first sittings by two to three times the sampling error, and the net changes sign across that band. It is quoted once a blind re-judgement of obduction and subduction has been labelled and loaded (docs/PLAN.md).
+The net of the two limbs is not quoted. The 2026-09-04 review found the reviewer's reading moving within each of the two first sittings by two to three times the sampling error, and the net changes sign across that band. Both limbs need a second look that counts before it is quoted (docs/PLAN.md). Missing on:
+- **subduction** — not reported — the calibration copy labelled before rejudge_subduction_01 (on 2026-09-08) read stricter than the reference: 13/42 accepted against the reference's 17/42, κ 0.73 — so that second look does not correct a rate. Its rows stay in the label table. A fresh second look, labelled after a calibration copy that passes, is what fills this in.

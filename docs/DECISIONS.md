@@ -72,6 +72,15 @@ it.
   list through `read_saved(verify=True)`: the key hash, the spec and the cache block must match
   the sidecar. The feature step records the cache fingerprint it measured, never the one it was
   told. **Why:** a check that compares a value with itself cannot fail (found 2026-09-04).
+- **The most recent calibration copy before a sheet decides whether the sheet counts.** A copy that
+  read DRIFTED (or none) means the session is loaded only by hand (`--accept-calibration-drift`),
+  recorded, and never used to correct a rate. **Why:** on 2026-09-08 the loader accepted a week-old
+  PASS while the copy labelled that morning read stricter than the reference; the second look it
+  admitted would have corrected the downward rate with a reading the reference rejects.
+- **A rate batch whose acceptance fell across the sitting is corrected by a blind second look**, never
+  quoted alone: 100 of its panels re-judged fresh, the flip rate per first verdict and half applied
+  row by row, the correction's own error added to the design variance. **Why:** the review of
+  2026-09-04; the drift was two to three times the sampling error and flipped the net's sign.
 - **Every rate comes from a probability sample with a declared frame and inclusion probability.**
   Score-selected labels are training only and every rate function rejects them. A uniform-random
   precision measures a rate; a score-ranked one is 7–15× higher on the same ocean and is barred.

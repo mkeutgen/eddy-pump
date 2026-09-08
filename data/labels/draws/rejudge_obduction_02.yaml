@@ -1,0 +1,208 @@
+# data/labels/draws/rejudge_obduction_02.yaml -- the draw record of one study batch. Built by pipeline/draw_batch.py;
+# never edited by hand. The sheet and key it hashes live under results/ (not in Git).
+batch_id: rejudge_obduction_02
+built: '2026-09-08T12:10:24-04:00'
+builder: pipeline/draw_batch.py
+seed: 20260827
+study_id: net_carbon_v1
+pool_id: net_carbon_v1/physical/obduction
+spec_id: v1:31619ba88c252ed8
+event_type: physical_obduction
+criterion_version: phys_net_carbon_v1
+criterion_status: ruled
+cache:
+  path: /Users/mk0964/Documents/release/cache_paper/residual_cache_v4
+  fine_grids: 2542
+  fine_grids_sha256: 11fce215c7db6cebabfbb0d233d17ed7b6674e388bcfb5b91153449ec35f8299
+scores_manifest:
+  path: data/features/net_carbon_v1/SCORES_SHA256
+  sha256: 0a2e5c57d4c525b6286dca2df8e80baa559c80f4b1bfc19b5146b719a616d896
+  built: '2026-09-04T15:14:48'
+  features_manifest_sha256: 14b8ed206cb754f1c65872914c9dfae7f4917774d19ced6def8ebdccabce495d
+role: rejudgement
+decides: false
+rejudges: rate_obduction_01
+sampling:
+  mode: probability
+  draw: uniform within each first verdict × half of the source sheet
+  design: probability
+  frame: the 476 decided science rows of rate_obduction_01 left to re-judge (its controls and its uncertain rows
+    are not re-judged)
+  strata: 'the four cells of the correction: what the reviewer first called the panel, crossed with the half of
+    the sitting it sat in'
+  inclusion_probability: the cell's panels / the cell's rows, exact and equal within a cell
+  allocation: 'the shape that makes the correction''s error smallest at this size: panels ∝ the cell''s weight in
+    the corrected rate × √(q(1−q)) of its planned flip rate, at least 15 panels per cell'
+source:
+  batch_id: rate_obduction_01
+  labelled_sheet: results/net_carbon_v1/labeling/rate_obduction_01/rate_obduction_01_LABELLED_20260827T165016Z.csv
+  labelled_sheet_sha256: f3de2cc7acd7fcf54d9a020b8a6bc03b5c7ea24aa0292ba7b1619632435dddb3
+  answer_key_sha256: 35a2f83bdd101524631e193972a4a55b2dc00a8ecb9134c2748bdd817ed1ce19
+  rows_in_sheet: 619
+  decided_science_rows: 576
+  half_cut_at_sample_id: 301.5
+  halves:
+    first:
+      n: 288
+      originally_accepted: 70
+    second:
+      n: 288
+      originally_accepted: 46
+  excluded_already_rejudged:
+    batches:
+    - rejudge_obduction_01
+    rows: 100
+    why: a panel already seen twice is not a fresh second look
+halves:
+- half: first
+  N: 238
+  n: 49
+  inclusion_probability: null
+  originally_accepted_in_the_half: 59
+  originally_accepted_in_the_draw: 16
+- half: second
+  N: 238
+  n: 51
+  inclusion_probability: null
+  originally_accepted_in_the_half: 38
+  originally_accepted_in_the_draw: 15
+answer_key_carries:
+- the first verdict (original_label)
+- where it sat in the first sheet (original_sample_id)
+- which half that was (original_half)
+- its stratum (design_stratum)
+- its score
+what_it_is_for: it measures how the reviewer's reading moved across the first sitting; it never enters a rate directly,
+  it corrects one (data/labels/audit/RATE_STATUS.md)
+check_before_labelling: 'the pool''s 42 calibration panels re-labelled blind: PASS, on an earlier day'
+steering_labels:
+  n: 0
+  accepted: 0
+  what: 'none: a re-judgement is not allocated on a model'
+n_science: 100
+n_controls:
+  positive: 10
+  negative: 10
+floats_in_draw: 95
+previously_judged_in_draw: 100
+hours_at_planning_rate: 0.9566666666666667
+strata: []
+controls:
+  positive:
+    source: the first upward calibration set's accepted events (REF_LABEL 1) with a candidate in the pool
+    criterion: phys_net_carbon_v1
+    n_source: 18
+    reference_k: null
+    reference_n: null
+    reference_provenance: the 42 upward calibration panels (calibration_reference_b6.csv); the reader reports the
+      controls, the drift test pools the arms across batches
+    src: first upward calibration set, accepted
+    steering: the study's own obduction reviews joined to the pool, each with the score a model gave it without
+      seeing its own label
+  negative:
+    source: the first upward calibration set's rejected events (REF_LABEL 0) with a candidate in the pool, classifier
+      score < 0.5
+    criterion: phys_net_carbon_v1
+    n_source: 22
+    score_cap: 0.5
+    ceiling: 0.2
+    ceiling_note: display only; a rejected candidate the classifier calls likely is a plausible detector miss, not
+      a control
+    src: first upward calibration set, rejected
+cells:
+- cell: 0|first
+  first_verdict: not real
+  half: first
+  N: 179
+  n: 33
+  inclusion_probability: 0.18435754189944134
+  weight_in_the_corrected_rate: 0.38383333299061817
+  planned_flip_rate: 0.0375
+- cell: 0|second
+  first_verdict: not real
+  half: second
+  N: 200
+  n: 36
+  inclusion_probability: 0.18
+  weight_in_the_corrected_rate: 0.41874842030777915
+  planned_flip_rate: 0.03571428571428571
+- cell: 1|first
+  first_verdict: real
+  half: first
+  N: 59
+  n: 16
+  inclusion_probability: 0.2711864406779661
+  weight_in_the_corrected_rate: 0.0713640331318054
+  planned_flip_rate: 0.4583333333333333
+- cell: 1|second
+  first_verdict: real
+  half: second
+  N: 38
+  n: 15
+  inclusion_probability: 0.39473684210526316
+  weight_in_the_corrected_rate: 0.047154736989472555
+  planned_flip_rate: 0.6111111111111112
+by_verdict: true
+correction_error:
+  planned_flip_rates:
+    0|first: 0.0375
+    0|second: 0.03571428571428571
+    1|first: 0.4583333333333333
+    1|second: 0.6111111111111112
+  planned_flip_rates_from: 'the flip rates rejudge_obduction_01 measured, Jeffreys-smoothed: 0|first 1/39, 0|second
+    1/41, 1|first 5/11, 1|second 5/8'
+  weight_in_the_corrected_rate:
+    0|first: 0.38383333299061817
+    0|second: 0.41874842030777915
+    1|first: 0.0713640331318054
+    1|second: 0.047154736989472555
+  se_this_shape: 0.021050842525926542
+  se_if_drawn_uniformly_by_half: 0.021291600008706644
+  uniform_shape_for_comparison:
+    0|first: 37.6
+    0|second: 42.0
+    1|first: 12.4
+    1|second: 8.0
+  what_it_is: the standard error the cell rates alone put on the corrected rate, at the planned flip rates; the
+    sampling error of the rate sheet adds to it in quadrature
+  se_pooled_with: rejudge_obduction_01
+  se_pooled_with_that_sheet: 0.014902565055843347
+  se_pooled_if_drawn_uniformly: 0.01514150393307504
+  pooling_holds_only_if: rejudge_obduction_01 counts for the correction — its own calibration copy passed; otherwise
+    this sheet stands alone at se_this_shape
+sheet_columns:
+- LABEL
+- SAMPLE_ID
+- WMO
+- CYCLE_NUMBER
+- PRES_ADJUSTED
+- LATITUDE
+- LONGITUDE
+- TIME
+- EVENT_TYPE
+blind: true
+control_placement:
+  how: 'evenly spaced: one control every 6.0 rows, and each arm evenly spread across those positions, both at a
+    random offset'
+  stride_rows: 6.0
+  n_controls: 20
+  n_rows: 120
+  arms:
+    neg_ctrl: 10
+    pos_ctrl: 10
+  offsets: random, and not recorded — writing them down would name the control rows
+worksheet:
+  path: results/net_carbon_v1/labeling/rejudge_obduction_02/rejudge_obduction_02.csv
+  sha256: 1dc635e282dc572aff3dc84ad7647ba16bea852308ca202f44271b65e2624777
+  rows: 120
+answer_key:
+  path: results/net_carbon_v1/labeling/rejudge_obduction_02/ANSWER_KEY_do_not_open.csv
+  sha256: 3a914ccd1e28693436271a86256af4c127ece59f091d6f462a22f189bceaa17c
+  rows: 120
+sessions: null
+session_rule: one sheet of 120 rows
+panels:
+  dir: results/net_carbon_v1/labeling/rejudge_obduction_02
+  rendered: 120
+  of: 120
+  per_sheet: 1

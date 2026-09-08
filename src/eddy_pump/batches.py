@@ -12,7 +12,10 @@ The session rules of docs/LABELING_PROTOCOL.md live here too. `control_slots` an
 shuffle drops them; `control_position_check` reads back whether an arm ended up bunched;
 `cochran_mantel_haenszel` asks whether acceptance fell between the two halves of a sheet with the
 stratum held fixed. `flip_table` reads a blind re-judgement of a labelled sheet, and
-`drift_corrected_rate` is the rate that re-judgement implies.
+`drift_corrected_rate` is the rate that re-judgement implies — pooling two second looks of one sheet
+through `pool_cells` when both count. `rejudgement_allocation` and `rejudgement_correction_se` size
+a second look: how many panels of each first verdict × half to re-show, and how well that shape
+pins the correction.
 """
 
 from __future__ import annotations
@@ -36,6 +39,7 @@ KAPPA_PASS = 0.6            # docs/LABELING_PROTOCOL.md: κ > 0.6 and base rate 
 MAX_SHEET_ROWS = 120        # docs/LABELING_PROTOCOL.md: one sheet is one session, at most 120 panels
 CONTROL_POSITION_ALPHA = 0.01   # a control arm bunched into part of the sheet fails below this
 DRIFT_ALPHA = 0.01          # the within-stratum position trend that stops a rate batch being loaded
+REJUDGE_CELL_FLOOR = 15     # a second look re-shows at least this many panels of every first verdict × half
 WORKSHEET_COLS = ["LABEL", "SAMPLE_ID", "WMO", "CYCLE_NUMBER", "PRES_ADJUSTED",
                   "LATITUDE", "LONGITUDE", "TIME", "EVENT_TYPE"]
 BLIND_FORBIDDEN = {"score", "stratum", "src", "inclusion_probability", "candidate_id", "REF_LABEL",
@@ -618,6 +622,85 @@ def flip_table(original: np.ndarray, rejudged: np.ndarray, half: np.ndarray) -> 
     return out
 
 
+def pool_cells(parts) -> dict:
+    """Two blind second looks of the same sheet, read as one estimate of each cell: the counts add.
+
+    `parts` is one `{n, accepted}` block or a list of them (each may name the sheet it came from).
+    Pooling assumes both sheets are the same second look — the same reading, on a day the
+    calibration copy passed. A second look whose calibration copy drifted is not pooled; it is
+    dropped (`pipeline/rates.py`).
+    """
+    if isinstance(parts, dict):
+        parts = [parts]
+    parts = [p for p in parts if int(p["n"]) > 0]
+    out = {"n": sum(int(p["n"]) for p in parts), "accepted": sum(int(p["accepted"]) for p in parts)}
+    if len(parts) > 1:
+        out["pooled_from"] = [{k: p[k] for k in ("batch_id", "n", "accepted") if k in p} for p in parts]
+    return out
+
+
+def rejudgement_correction_se(share: dict, q: dict, n: dict) -> float:
+    """How well a second look of shape `n` pins the correction: the standard error the cell rates
+    put on the corrected rate.
+
+    The corrected rate is linear in the cell rates, rate = Σ_c share_c · q_c + a constant, where
+    share_c is the weight the cell carries (`drift_corrected_rate`'s own coefficient: Σ_h W_h times
+    the cell's share of the stratum's rows). So its variance is Σ_c share_c² · q_c(1−q_c) / n_c.
+    """
+    return math.sqrt(sum(share[c] ** 2 * q[c] * (1 - q[c]) / n[c] for c in share if n.get(c)))
+
+
+def rejudgement_allocation(share: dict, q: dict, available: dict, n_total: int,
+                           floor: int = REJUDGE_CELL_FLOOR) -> dict:
+    """How many panels of each cell (first verdict × half) a blind second look should re-show.
+
+    Minimising `rejudgement_correction_se` at a fixed total gives the Neyman rule
+    n_c ∝ share_c · √(q_c(1−q_c)): rows go where the cell carries weight and its rate is uncertain.
+    A cell whose share is large is worth pinning even when its rate is near zero — most of a pool's
+    rows were called not real, so those cells carry most of the weight.
+
+    Two constraints on top: at least `floor` panels of every cell, so each cell can see a flip at
+    all, and never more than the rows the cell has left (`available`). Largest remainder rounds the
+    result to whole panels summing to `n_total`.
+    """
+    names = sorted(share)
+    if n_total > sum(available[c] for c in names):
+        raise ValueError(f"only {sum(available[c] for c in names)} rows are left to re-judge, fewer than "
+                         f"the {n_total} the design asks for")
+    if sum(min(floor, available[c]) for c in names) > n_total:
+        raise ValueError(f"a floor of {floor} panels in each of the {len(names)} cells needs more than "
+                         f"the {n_total} panels the design draws")
+    w = {c: share[c] * math.sqrt(max(q[c] * (1 - q[c]), 0.0)) for c in names}
+    if sum(w.values()) <= 0:
+        w = {c: float(share[c]) for c in names}
+    fixed: dict[str, float] = {}
+    x: dict[str, float] = {}
+    while True:
+        free = [c for c in names if c not in fixed]
+        budget = n_total - sum(fixed.values())
+        if not free:
+            x = dict(fixed)
+            break
+        tw = sum(w[c] for c in free)
+        prop = {c: (budget * w[c] / tw if tw > 0 else budget / len(free)) for c in free}
+        low = [c for c in free if prop[c] < min(floor, available[c])]
+        high = [c for c in free if prop[c] > available[c]]
+        if not low and not high:
+            x = {**fixed, **prop}
+            break
+        for c in low:
+            fixed[c] = float(min(floor, available[c]))
+        for c in high:
+            fixed[c] = float(available[c])
+    n = {c: int(math.floor(x[c])) for c in names}
+    for c in sorted(names, key=lambda c: -(x[c] - math.floor(x[c]))):
+        if sum(n.values()) >= n_total:
+            break
+        if n[c] < available[c]:
+            n[c] += 1
+    return n
+
+
 def drift_corrected_rate(y: np.ndarray, cell: np.ndarray, stratum: np.ndarray, N_h: dict,
                          cells: dict, se_design: float, n_boot: int = 3000, seed: int = 0) -> dict:
     """The rate the sheet would have given if every panel had been read the way the blind
@@ -627,6 +710,9 @@ def drift_corrected_rate(y: np.ndarray, cell: np.ndarray, stratum: np.ndarray, N
     re-judgement accepts a panel of that first verdict from that half of the sheet — the cell rate
     k/n out of `cells`. A row whose cell is not in `cells` (a batch with no re-judgement) keeps its
     own verdict. The stratified mean is then formed exactly as before, Σ_h W_h · mean_h.
+
+    A cell may carry one `{n, accepted}` block or a list of them: two second looks at the same sheet
+    are pooled, their counts added (`pool_cells`), and the interval narrows accordingly.
 
     Two terms in the error bar:
 
@@ -642,6 +728,7 @@ def drift_corrected_rate(y: np.ndarray, cell: np.ndarray, stratum: np.ndarray, N
     """
     y, cell, stratum = np.asarray(y, float), np.asarray(cell), np.asarray(stratum)
     N = float(sum(N_h.values()))
+    cells = {c: pool_cells(v) for c, v in cells.items()}
     names = sorted(c for c in cells if cells[c]["n"] > 0)
     q = {c: cells[c]["accepted"] / cells[c]["n"] for c in names}
     corrected = np.array([q[c] if c in q else y[i] for i, c in enumerate(cell)], float)
@@ -668,7 +755,7 @@ def drift_corrected_rate(y: np.ndarray, cell: np.ndarray, stratum: np.ndarray, N
     return {"rate": float(point), "se_design": float(se_design), "se_rejudgement": se_rejudgement,
             "se_total": se_total, "half_width_95": Z * se_total,
             "half_width_95_rel": (Z * se_total / point) if point > 0 else float("inf"),
-            "cell_rates": {c: {"n": cells[c]["n"], "accepted": cells[c]["accepted"], "rate": q[c]} for c in names},
+            "cell_rates": {c: {k: v for k, v in (*cells[c].items(), ("rate", q[c]))} for c in names},
             "rows_corrected": int(np.isin(cell, names).sum()), "rows_kept_as_labelled": int((~np.isin(cell, names)).sum()),
             "n_boot": int(n_boot), "per_stratum": per,
             "what_it_is": "the rate if the reviewer had read every panel the way the blind re-judgement reads it"}

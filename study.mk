@@ -82,8 +82,8 @@ review:
 # 7. Load a labelled sheet into the study's label table. It refuses unless a calibration of the same
 #    pool passed and was finished before this sheet.
 load:
-	@test -n "$(BATCH)" || (echo "usage: make load BATCH=<batch name, e.g. rate_obduction_01>"; exit 1)
-	$(PY) pipeline/load_batch.py $(BATCH)
+	@test -n "$(BATCH)" || (echo "usage: make load BATCH=<batch name, e.g. rate_obduction_01> [FLAGS=\"--replace\"]"; exit 1)
+	$(PY) pipeline/load_batch.py $(BATCH) $(FLAGS)
 
 # 8. The rate report: the rate per limb, its denominator and its error bar.
 $(AUD)/rate_status.csv: data/labels/study_reviews.parquet $(wildcard data/labels/draws/*.yaml)

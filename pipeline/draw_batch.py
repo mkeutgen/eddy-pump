@@ -667,9 +667,90 @@ def source_science_rows(source_id: str) -> tuple[pd.DataFrame, dict]:
     return t, meta
 
 
+def pool_frame_sizes(pool_id: str) -> tuple[dict, int]:
+    """Every stratum of every rate draw of a pool, with its level count, and their total.
+
+    The same numbers `pipeline/rates.py` divides by: a pool sampled by two draws (the upward limb)
+    adds both.
+    """
+    import yaml
+
+    N_h: dict[str, int] = {}
+    for p in sorted(DRAWS.glob("*.yaml")):
+        if p.name.endswith((".labelled.yaml", ".reference.yaml")):
+            continue
+        r = yaml.safe_load(p.read_text())
+        if r.get("role") == "analysis" and r.get("pool_id") == pool_id:
+            for st in r.get("strata") or []:
+                N_h[st["design_stratum"]] = N_h.get(st["design_stratum"], 0) + st["N"]
+    return N_h, int(sum(N_h.values()))
+
+
+def cell_weights(t: pd.DataFrame, pool_id: str) -> dict:
+    """What each cell (first verdict × half) is worth in the corrected rate.
+
+    The corrected rate is Σ_c share_c · q_c + a constant, and share_c is Σ_h W_h times the cell's
+    share of the rows of stratum h — exactly the coefficient `drift_corrected_rate` forms. Most rows
+    of a pool were called not real, so those cells carry most of the weight, and the shape of a
+    second look follows from that, not from intuition.
+    """
+    N_h, N = pool_frame_sizes(pool_id)
+    share: dict[str, float] = {}
+    for h, g in t.groupby("design_stratum"):
+        if h not in N_h:
+            raise SystemExit(f"the stratum {h} of this sheet has no level count in any draw record")
+        W, n_h = N_h[h] / N, len(g)
+        for c, gg in g.groupby("cell"):
+            share[c] = share.get(c, 0.0) + W * len(gg) / n_h
+    return share
+
+
+def prior_cell_rates(prior_id: str | None, cells: list[str]) -> tuple[dict, str]:
+    """How often a second look called each cell real, from an earlier second look of the same sheet.
+
+    Jeffreys-smoothed (k + ½)/(n + 1), so a cell no panel of came back real still has a rate to
+    plan on. With no earlier second look every cell is planned at ½, which puts the panels in
+    proportion to what the cells are worth.
+    """
+    import yaml
+
+    if prior_id:
+        p = DRAWS / f"{prior_id}.labelled.yaml"
+        if not p.exists():
+            raise SystemExit(f"{prior_id} has not been labelled and loaded; it is what this draw's shape is planned on")
+        seen = yaml.safe_load(p.read_text())["session"]["rejudgement"]["cells"]
+        q = {c: (seen[c]["accepted"] + 0.5) / (seen[c]["n"] + 1) for c in cells if c in seen}
+        if len(q) == len(cells):
+            return q, (f"the flip rates {prior_id} measured, Jeffreys-smoothed: "
+                       + ", ".join(f"{c} {seen[c]['accepted']}/{seen[c]['n']}" for c in sorted(cells)))
+        missing = [c for c in cells if c not in seen]
+        return ({c: q.get(c, 0.5) for c in cells},
+                f"the flip rates {prior_id} measured, Jeffreys-smoothed, and one half for the cells it never saw "
+                f"({', '.join(missing)})")
+    return {c: 0.5 for c in cells}, ("no earlier second look: every cell planned at one half, so the panels go in "
+                                     "proportion to what each cell is worth")
+
+
+def rejudged_keys(batch_ids: list[str]) -> set:
+    """The panels those second looks already re-judged, from their own sealed keys."""
+    out: set = set()
+    import yaml
+
+    for bid in batch_ids or []:
+        r = yaml.safe_load((DRAWS / f"{bid}.yaml").read_text())
+        kp = B.resolve_recorded_path(r["answer_key"]["path"])
+        if B.sha256_of(kp) != r["answer_key"]["sha256"]:
+            raise SystemExit(f"{kp} is not the sealed key {bid}'s record names — refusing")
+        k = pd.read_csv(kp)
+        out |= set(B.key3(k[k.stratum == B.TARGET]))
+    return out
+
+
 def rejudge_arm(study, pool, s: pd.DataFrame, source_id: str, rng: np.random.Generator,
                 controls: tuple[pd.DataFrame, pd.DataFrame, dict, dict], batch_id: str,
-                n_science: int = REJUDGE_SCIENCE, n_controls: int = REJUDGE_CONTROLS) -> tuple[B.Batch, dict]:
+                n_science: int = REJUDGE_SCIENCE, n_controls: int = REJUDGE_CONTROLS,
+                by_verdict: bool = False, prior: str | None = None,
+                exclude: list[str] | None = None) -> tuple[B.Batch, dict]:
     """A blind second look at `n_science` panels of a labelled rate sheet, half from each half of it.
 
     The panels are drawn uniformly at random from the sheet's decided science rows, `n_science / 2`
@@ -679,25 +760,65 @@ def rejudge_arm(study, pool, s: pd.DataFrame, source_id: str, rng: np.random.Gen
     the sheet says which panel this is or what it was called the first time. The sealed key keeps
     the first verdict, the first position, the half, the stratum and the score.
 
+    With `by_verdict`, the four cells of the correction — what the reviewer first called the panel
+    crossed with the half it sat in — are strata of the draw instead of the two halves alone, and the
+    panels are shared out so as to make the correction's error as small as it can be at this size
+    (`eddy_pump.batches.rejudgement_allocation`, from the variance of the correction itself). Each
+    cell's inclusion probability is its own and is recorded. `exclude` names earlier second looks
+    whose panels are left out, so a redo shows fresh panels.
+
     It decides nothing on its own. What it measures is how the reviewer's reading moved across the
     first sitting, and that is what corrects the rate (`eddy_pump.batches.drift_corrected_rate`).
     """
     t, meta = source_science_rows(source_id)
+    t["cell"] = t.original_label.astype(int).astype(str) + "|" + t.original_half
+    whole_sheet = t              # what the correction weighs: every decided science row of the sheet
+    seen = rejudged_keys(exclude or [])
+    if seen:
+        t["key"] = B.key3(t)
+        before = len(t)
+        t = t[~t.key.isin(seen)].drop(columns=["key"])
+        meta["excluded_already_rejudged"] = {"batches": list(exclude), "rows": int(before - len(t)),
+                                             "why": "a panel already seen twice is not a fresh second look"}
     per_half = n_science // 2
-    parts = []
-    halves = []
-    for h in ("first", "second"):
-        pool_h = t[t.original_half == h]
-        if len(pool_h) < per_half:
-            raise SystemExit(f"{batch_id}: the {h} half of {source_id} holds {len(pool_h)} decided science rows, "
-                             f"fewer than the {per_half} a re-judgement draws from it")
-        take = pool_h.iloc[rng.choice(len(pool_h), per_half, replace=False)].copy()
-        take["inclusion_probability"] = per_half / len(pool_h)
-        parts.append(take)
-        halves.append({"half": h, "N": int(len(pool_h)), "n": int(per_half),
-                       "inclusion_probability": per_half / len(pool_h),
-                       "originally_accepted_in_the_half": int(pool_h.original_label.sum()),
-                       "originally_accepted_in_the_draw": int(take.original_label.sum())})
+    parts, halves, cells = [], [], []
+    if by_verdict:
+        # the weights are read off the whole sheet, because that is what the correction reweights;
+        # the panels are drawn from what is left, because a redo shows fresh ones
+        share = cell_weights(whole_sheet, pool.pool_id)
+        avail = {c: int((t.cell == c).sum()) for c in share}
+        q, q_source = prior_cell_rates(prior, sorted(share))
+        n_c = B.rejudgement_allocation(share, q, avail, n_science)
+        for c in sorted(share):
+            g = t[t.cell == c]
+            take = g.iloc[rng.choice(len(g), n_c[c], replace=False)].copy()
+            take["inclusion_probability"] = n_c[c] / len(g)
+            parts.append(take)
+            cells.append({"cell": c, "first_verdict": "real" if c.startswith("1") else "not real",
+                          "half": c.split("|")[1], "N": int(len(g)), "n": int(n_c[c]),
+                          "inclusion_probability": n_c[c] / len(g), "weight_in_the_corrected_rate": share[c],
+                          "planned_flip_rate": q[c]})
+        for h in ("first", "second"):
+            g = t[t.original_half == h]
+            n_h = sum(x["n"] for x in cells if x["half"] == h)
+            halves.append({"half": h, "N": int(len(g)), "n": int(n_h),
+                           "inclusion_probability": None,
+                           "originally_accepted_in_the_half": int(g.original_label.sum()),
+                           "originally_accepted_in_the_draw": sum(x["n"] for x in cells
+                                                                 if x["half"] == h and x["cell"].startswith("1"))})
+    else:
+        for h in ("first", "second"):
+            pool_h = t[t.original_half == h]
+            if len(pool_h) < per_half:
+                raise SystemExit(f"{batch_id}: the {h} half of {source_id} holds {len(pool_h)} decided science rows, "
+                                 f"fewer than the {per_half} a re-judgement draws from it")
+            take = pool_h.iloc[rng.choice(len(pool_h), per_half, replace=False)].copy()
+            take["inclusion_probability"] = per_half / len(pool_h)
+            parts.append(take)
+            halves.append({"half": h, "N": int(len(pool_h)), "n": int(per_half),
+                           "inclusion_probability": per_half / len(pool_h),
+                           "originally_accepted_in_the_half": int(pool_h.original_label.sum()),
+                           "originally_accepted_in_the_draw": int(take.original_label.sum())})
     drawn = pd.concat(parts, ignore_index=True)
     drawn["key"] = B.key3(drawn)
     # every re-judged panel must still be a candidate of the live pool: the panel is drawn again
@@ -713,16 +834,29 @@ def rejudge_arm(study, pool, s: pd.DataFrame, source_id: str, rng: np.random.Gen
     ctrl, pos, neg, pos_meta, neg_meta = blind_controls(controls, science, rng, n_controls)
     batch = B.Batch(batch_id=batch_id, science=science, controls=ctrl, event_type=pool.event_type, rng=rng,
                     extra_key_cols=("original_label", "original_sample_id", "original_half"))
+    sampling = (
+        {"mode": "probability", "draw": "uniform within each first verdict × half of the source sheet",
+         "design": "probability",
+         "frame": f"the {int(len(t)):,} decided science rows of {source_id} left to re-judge "
+                  f"(its controls and its uncertain rows are not re-judged)",
+         "strata": "the four cells of the correction: what the reviewer first called the panel, crossed with the "
+                   "half of the sitting it sat in",
+         "inclusion_probability": "the cell's panels / the cell's rows, exact and equal within a cell",
+         "allocation": "the shape that makes the correction's error smallest at this size: panels ∝ the cell's "
+                       "weight in the corrected rate × √(q(1−q)) of its planned flip rate, at least "
+                       f"{B.REJUDGE_CELL_FLOOR} panels per cell"}
+        if by_verdict else
+        {"mode": "probability", "draw": "uniform within each half of the source sheet", "design": "probability",
+         "frame": f"the {meta['decided_science_rows']:,} decided science rows of {source_id} "
+                  f"(its controls and its uncertain rows are not re-judged)",
+         "strata": "the two halves of the source sheet, cut at the median position of its decided "
+                   "science rows — the same cut the loader's session read uses",
+         "inclusion_probability": f"{per_half} / the half's decided science rows, exact and equal within a half",
+         "allocation": f"{per_half} panels from each half, by design, so the second look sees the start and "
+                       f"the end of the first sitting equally"})
     design = {
         "role": "rejudgement", "decides": False, "rejudges": source_id,
-        "sampling": {"mode": "probability", "draw": "uniform within each half of the source sheet", "design": "probability",
-                     "frame": f"the {meta['decided_science_rows']:,} decided science rows of {source_id} "
-                              f"(its controls and its uncertain rows are not re-judged)",
-                     "strata": "the two halves of the source sheet, cut at the median position of its decided "
-                               "science rows — the same cut the loader's session read uses",
-                     "inclusion_probability": f"{per_half} / the half's decided science rows, exact and equal within a half",
-                     "allocation": f"{per_half} panels from each half, by design, so the second look sees the start and "
-                                   f"the end of the first sitting equally"},
+        "sampling": sampling,
         "source": meta, "halves": halves,
         "answer_key_carries": ["the first verdict (original_label)", "where it sat in the first sheet (original_sample_id)",
                                "which half that was (original_half)", "its stratum (design_stratum)", "its score"],
@@ -737,7 +871,50 @@ def rejudge_arm(study, pool, s: pd.DataFrame, source_id: str, rng: np.random.Gen
         "strata": [],
         "controls": {"positive": pos_meta, "negative": neg_meta},
     }
+    if by_verdict:
+        design["cells"] = cells
+        design["by_verdict"] = True
+        design["correction_error"] = correction_error_block(share, q, q_source, {c: n_c[c] for c in n_c},
+                                                           avail, prior, n_science)
     return batch, design
+
+
+def correction_error_block(share: dict, q: dict, q_source: str, n: dict, avail: dict,
+                           prior: str | None, n_science: int) -> dict:
+    """What this shape buys: the error the cell rates put on the corrected rate, against the plain
+    uniform draw of the same size, and against both second looks read together.
+
+    The error is Σ_c share_c² q_c(1−q_c)/n_c under the square root
+    (`eddy_pump.batches.rejudgement_correction_se`). The uniform draw of the same size is what the
+    first second look did: half the panels from each half of the sitting, whichever cell they fall
+    in, so its shape follows the rows and not the weights.
+    """
+    import yaml
+
+    names = sorted(share)
+    uniform = {}
+    for h in ("first", "second"):
+        in_half = [c for c in names if c.endswith(h)]
+        rows = sum(avail[c] for c in in_half)
+        for c in in_half:
+            uniform[c] = (n_science // 2) * avail[c] / rows
+    out = {"planned_flip_rates": {c: q[c] for c in names}, "planned_flip_rates_from": q_source,
+           "weight_in_the_corrected_rate": {c: share[c] for c in names},
+           "se_this_shape": B.rejudgement_correction_se(share, q, n),
+           "se_if_drawn_uniformly_by_half": B.rejudgement_correction_se(share, q, uniform),
+           "uniform_shape_for_comparison": {c: round(uniform[c], 1) for c in names},
+           "what_it_is": "the standard error the cell rates alone put on the corrected rate, at the planned flip "
+                         "rates; the sampling error of the rate sheet adds to it in quadrature"}
+    if prior:
+        seen = yaml.safe_load((DRAWS / f"{prior}.labelled.yaml").read_text())["session"]["rejudgement"]["cells"]
+        both = {c: n[c] + seen[c]["n"] for c in names}
+        both_uniform = {c: uniform[c] + seen[c]["n"] for c in names}
+        out["se_pooled_with"] = prior
+        out["se_pooled_with_that_sheet"] = B.rejudgement_correction_se(share, q, both)
+        out["se_pooled_if_drawn_uniformly"] = B.rejudgement_correction_se(share, q, both_uniform)
+        out["pooling_holds_only_if"] = (f"{prior} counts for the correction — its own calibration copy passed; "
+                                        f"otherwise this sheet stands alone at se_this_shape")
+    return out
 
 
 # --------------------------------------------------------------------------------------------- #
@@ -885,6 +1062,21 @@ DESIGNS: dict[str, dict] = {
     "rejudge_subduction_01": {"pool": "physical_subduction", "seed_index": 7, "rejudges": "rate_subduction_01",
                               "what": f"a blind second look at {REJUDGE_SCIENCE} panels of rate_subduction_01, "
                                       f"half from each half of that sitting"},
+    # The redo of the downward second look. The first one was labelled after a calibration copy that
+    # read stricter than the reference, so it corrects nothing (data/labels/audit/RATE_STATUS.md).
+    # This one shows fresh panels and is shaped by the four cells of the correction.
+    "rejudge_subduction_02": {"pool": "physical_subduction", "seed_index": 8, "rejudges": "rate_subduction_01",
+                              "by_verdict": True, "prior": "rejudge_subduction_01",
+                              "exclude": ["rejudge_subduction_01"],
+                              "what": f"the downward second look again: {REJUDGE_SCIENCE} fresh panels of "
+                                      f"rate_subduction_01, shared out by first verdict × half"},
+    # A second upward sheet, optional: its cells pool with the first one's, which narrows the upward
+    # correction. Nothing in the paper waits on it.
+    "rejudge_obduction_02": {"pool": "physical_obduction", "seed_index": 9, "rejudges": "rate_obduction_01",
+                             "by_verdict": True, "prior": "rejudge_obduction_01",
+                             "exclude": ["rejudge_obduction_01"],
+                             "what": f"a second upward second look: {REJUDGE_SCIENCE} fresh panels of "
+                                     f"rate_obduction_01, shared out by first verdict × half"},
 }
 
 
@@ -926,7 +1118,9 @@ class Plan:
         if DESIGNS[bid].get("rejudges"):
             # a re-judgement is not allocated on a planned acceptance: it re-shows panels already judged
             controls = upward_controls(s, self.crit) if et == "physical_obduction" else downward_controls(s)
-            return rejudge_arm(self.study, self.pools[et], s, DESIGNS[bid]["rejudges"], rng, controls, bid)
+            return rejudge_arm(self.study, self.pools[et], s, DESIGNS[bid]["rejudges"], rng, controls, bid,
+                               by_verdict=bool(DESIGNS[bid].get("by_verdict")), prior=DESIGNS[bid].get("prior"),
+                               exclude=DESIGNS[bid].get("exclude"))
         p_plan, p_source = self.base_rate
         if bid == "calib_obduction_b6":
             return calib_upward_b6(s, self.crit, rng)
@@ -1135,10 +1329,26 @@ def print_plan(bid: str, design: dict, rows: int) -> None:
         src = design["source"]
         print(f"   re-judges {design['rejudges']}: {src['decided_science_rows']} decided science rows of "
               f"{src['rows_in_sheet']}, halves cut at position {src['half_cut_at_sample_id']:.1f}")
+        if src.get("excluded_already_rejudged"):
+            x = src["excluded_already_rejudged"]
+            print(f"   leaves out the {x['rows']} panels {', '.join(x['batches'])} already re-judged")
         for h in design["halves"]:
-            print(f"   {h['half']:>17} half  N {h['N']:>4}  n {h['n']:>3}  π {h['inclusion_probability']:.4f}  "
-                  f"first read as real {h['originally_accepted_in_the_half']}/{h['N']}, "
-                  f"{h['originally_accepted_in_the_draw']}/{h['n']} of them in this draw")
+            print(f"   {h['half']:>17} half  N {h['N']:>4}  n {h['n']:>3}"
+                  + (f"  π {h['inclusion_probability']:.4f}" if h["inclusion_probability"] else "          ")
+                  + f"  first read as real {h['originally_accepted_in_the_half']}/{h['N']}, "
+                    f"{h['originally_accepted_in_the_draw']}/{h['n']} of them in this draw")
+        for c in design.get("cells", []):
+            print(f"   first called {c['first_verdict']:>8}, {c['half']:>6} half  N {c['N']:>4}  n {c['n']:>3}  "
+                  f"π {c['inclusion_probability']:.4f}  worth {c['weight_in_the_corrected_rate']:.3f} of the "
+                  f"corrected rate, planned flip rate {c['planned_flip_rate']:.2f}")
+        e = design.get("correction_error")
+        if e:
+            print(f"   the correction's own error at {design['n_science']} panels: {e['se_this_shape']:.4f} this shape, "
+                  f"{e['se_if_drawn_uniformly_by_half']:.4f} drawn uniformly by half")
+            if e.get("se_pooled_with"):
+                print(f"   read together with {e['se_pooled_with']}: {e['se_pooled_with_that_sheet']:.4f} "
+                      f"({e['se_pooled_if_drawn_uniformly']:.4f} if this one were drawn uniformly)")
+            print(f"   planned on {e['planned_flip_rates_from']}")
     if rows > MAX_SHEET_ROWS:
         print(f"   {rows} rows is over the {MAX_SHEET_ROWS}-panel session cap: "
               f"{len(session_sizes(rows))} sheets of {session_sizes(rows)[0]} or fewer, unless --allow-long")

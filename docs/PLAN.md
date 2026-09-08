@@ -76,13 +76,13 @@ Each step names what it produces and the one number that matters. Estimates are 
    0.249, upward 0.087 to 0.168. The record: `data/labels/audit/RATE_REVIEW_2026-09-04.md`.
    **No net is quoted before step 7.**
 7. **Measure and correct the drift** *(your labelling: two calibration copies and two sheets of
-   120 panels, about 2 hours).* Prepared 2026-09-07: the two blind second looks are drawn
-   (`rejudge_obduction_01`, `rejudge_subduction_01`: 100 science panels each, 50 per original half,
-   20 interleaved controls), the session rules are enforced by the draw and the loader, and the
-   first batches' strata are pinned so the open-region strata can be reused. Once loaded,
-   `make rates` reports the drift-corrected rates and the net with an interval that includes the
-   correction's own error (about 1.9× the sampling error at 100 panels; a second sheet of 100
-   halves that if needed). *Check: both rates and the net carry an interval that includes the drift.*
+   120 panels, about 2 hours, on a day other than 2026-09-08).* The first second looks were labelled
+   2026-09-08: the upward one counts (corrected rate 9.2 %, ±48 %); the downward one does not, because
+   its calibration copy read stricter than the reference that morning. Ready to label:
+   `calib_subduction_v1_pass4` then `rejudge_subduction_02` (the redo), and `calib_obduction_v1_pass4`
+   then `rejudge_obduction_02` (halves the upward correction's error). The most recent calibration
+   copy before a sheet decides whether the sheet counts. *Check: both rates and the net carry an
+   interval that includes the drift.*
 
 Blocked by nothing here: **the data deposit upload** (yours — the local deposit is staged at
 `~/Documents/release/zenodo-study-deposit`, 2.9 GB, verified; upload it, get the DOI, set

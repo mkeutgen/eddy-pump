@@ -1,0 +1,343 @@
+# data/labels/draws/rejudge_subduction_01.labelled.yaml -- the session read and the hashes of the labelled sheet. Built by
+# pipeline/load_batch.py; never edited by hand.
+batch_id: rejudge_subduction_01
+ingested: '2026-09-08T11:56:40-04:00'
+worksheet_mtime: '2026-09-08T09:22:29-04:00'
+worksheet_first_saved: '2026-09-08T09:22:29-04:00'
+calibration_check: &id001
+  batch: calib_subduction_v1_pass3
+  worksheet_mtime: '2026-09-08T09:19:36-04:00'
+  verdict: DRIFTED
+  kappa: 0.7311827956989247
+  base_rate_you: 13/42
+  base_rate_reference: 17/42
+  base_rate_drift_relative: -0.19705882352941173
+  undecided: 2
+  sheet_first_saved: '2026-09-08T09:22:29-04:00'
+  earlier_day: false
+  warning: the calibration copy was labelled on 2026-09-08, the same day as this sheet — the protocol asks for an
+    earlier day, so that the reading it checks is not the one the sheet was labelled in
+  copies_before_this_sheet:
+  - batch: calib_subduction_v1
+    worksheet_mtime: '2026-09-01T14:11:40-04:00'
+    verdict: PASS
+  - batch: calib_subduction_v1_pass2
+    worksheet_mtime: '2026-09-01T14:23:56-04:00'
+    verdict: PASS
+  - batch: calib_subduction_v1_pass3
+    worksheet_mtime: '2026-09-08T09:19:36-04:00'
+    verdict: DRIFTED
+  accepted_by_hand: true
+  accepted_by_hand_means: 'loaded with --accept-calibration-drift: calib_subduction_v1_pass3 read DRIFTED: 13/42
+    accepted against the reference''s 17/42, 20% relative stricter, κ 0.73'
+  counts_for_correction: false
+  does_not_count_because: 'the calibration copy labelled before this second look did not pass (calib_subduction_v1_pass3
+    read DRIFTED: 13/42 accepted against the reference''s 17/42, 20% relative stricter, κ 0.73); a second look read
+    under a reading known to have moved cannot say how another reading moved'
+labelled_sheet:
+  path: results/net_carbon_v1/labeling/rejudge_subduction_01/rejudge_subduction_01_LABELLED_20260908T152255Z.csv
+  sha256: 94b9ba8f94bf971396a2eb93b3c6342f771faa2fefd3a98ac7bdeab69c3dcd11
+  sheets: null
+rows: 120
+decided: 118
+accepted: 20
+uncertain: 2
+blank: 0
+session:
+  kind: rejudgement
+  n_rows: 120
+  n_decided: 118
+  n_accepted: 20
+  n_rejected: 98
+  n_uncertain: 2
+  n_blank: 0
+  position:
+  - bin: 1
+    sid_lo: 0.0
+    sid_hi: 30.0
+    n: 30
+    accept: 0.1
+  - bin: 2
+    sid_lo: 31.0
+    sid_hi: 60.0
+    n: 29
+    accept: 0.2413793103448276
+  - bin: 3
+    sid_lo: 61.0
+    sid_hi: 89.0
+    n: 29
+    accept: 0.2413793103448276
+  - bin: 4
+    sid_lo: 90.0
+    sid_hi: 119.0
+    n: 30
+    accept: 0.1
+  trend_p_mann_whitney: 0.979971353786402
+  change_point:
+    sample_id: 96.0
+    accept_before: 0.20212765957446807
+    accept_after: 0.041666666666666664
+    p_raw: 0.07157976233262948
+    p_adjusted: 1.0
+    verdict: none
+  key_opened: true
+  warnings:
+  - 2 uncertain — a rising uncertain rate is a fatigue signal
+  - the worksheet already carries `LATITUDE`, `LONGITUDE`, `SAMPLE_ID`, `TIME` — the answer key ANSWER_KEY_do_not_open.csv
+    is the authority, so the worksheet's copy was dropped before the join
+  controls:
+    pos_ctrl:
+      n: 10
+      accepted: 3
+      ci95:
+      - 0.09269459393815316
+      - 0.6058183181486713
+    neg_ctrl:
+      n: 10
+      accepted: 1
+      ci95:
+      - 0.011011673763161135
+      - 0.38131477106661626
+      ceiling: 0.2
+      ceiling_note: display only; at equality nothing fires — the test is Fisher against the negatives' own blind
+        history
+      with_score_above_0p5:
+        n: 1
+        accepted: 0
+        note: a rejected candidate the classifier calls likely is a plausible detector miss, not a control
+  control_positions:
+    per_sheet:
+      rejudge_subduction_01:
+        arms:
+          neg_ctrl:
+            n: 10
+            quarters_of_the_sheet:
+            - 2
+            - 3
+            - 2
+            - 3
+            ks_p_vs_flat: 0.9999999427664591
+          pos_ctrl:
+            n: 10
+            quarters_of_the_sheet:
+            - 3
+            - 2
+            - 3
+            - 2
+            ks_p_vs_flat: 0.9999983444931864
+        smallest_p: 0.9999983444931864
+        alpha: 0.01
+        verdict: PASS
+        what_it_reads: whether each control arm is spread over the sheet; a bunched arm cannot see a reviewer who
+          changes within the session
+    placed_by_the_draw:
+      how: 'evenly spaced: one control every 6.0 rows, and each arm evenly spread across those positions, both at
+        a random offset'
+      stride_rows: 6.0
+      n_controls: 20
+      n_rows: 120
+      arms:
+        neg_ctrl: 10
+        pos_ctrl: 10
+      offsets: random, and not recorded — writing them down would name the control rows
+    verdict: PASS
+    alpha: 0.01
+    what_a_fail_means: an arm is bunched into part of the sheet; recorded, never a reason to drop a label
+  target_by_stratum:
+    open|d0:
+      n: 6
+      accepted: 0
+    open|d1:
+      n: 3
+      accepted: 0
+    open|d2:
+      n: 4
+      accepted: 0
+    open|d3:
+      n: 5
+      accepted: 0
+    open|d4:
+      n: 11
+      accepted: 0
+    open|d5:
+      n: 17
+      accepted: 1
+    open|d6:
+      n: 12
+      accepted: 1
+    open|d7:
+      n: 16
+      accepted: 4
+    open|d8:
+      n: 11
+      accepted: 4
+    open|d9:
+      n: 13
+      accepted: 6
+  target_raw_acceptance_unweighted: 0.16326530612244897
+  target_previously_judged:
+    n: 98
+    accepted: 16
+  target_position_quarters:
+  - quarter: 1
+    n: 25
+    accept: 0.08
+  - quarter: 2
+    n: 24
+    accept: 0.25
+  - quarter: 3
+    n: 24
+    accept: 0.25
+  - quarter: 4
+    n: 25
+    accept: 0.08
+  target_halves:
+    first:
+      n: 49
+      accept: 0.16326530612244897
+    second:
+      n: 49
+      accept: 0.16326530612244897
+    cut_at:
+      rejudge_subduction_01: 60.5
+    by_stratum:
+      open|d0:
+        first: 0.0
+        second: 0.0
+      open|d1:
+        first: 0.0
+        second: null
+      open|d2:
+        first: 0.0
+        second: 0.0
+      open|d3:
+        first: 0.0
+        second: 0.0
+      open|d4:
+        first: 0.0
+        second: 0.0
+      open|d5:
+        first: 0.0
+        second: 0.09090909090909091
+      open|d6:
+        first: 0.125
+        second: 0.0
+      open|d7:
+        first: 0.3333333333333333
+        second: 0.14285714285714285
+      open|d8:
+        first: 0.3333333333333333
+        second: 0.4
+      open|d9:
+        first: 0.4
+        second: 0.5
+  trend_p_mann_whitney_science_rows: 0.9272443727561092
+  within_stratum_position_trend:
+    chi2: 0.02101774945279035
+    p: 0.8847306135362294
+    df: 1
+    continuity_correction: false
+    strata_used: 5
+    strata_dropped: 5
+    accept_first_half: 0.16326530612244897
+    accept_second_half: 0.16326530612244897
+    per_stratum:
+      open|d5:
+        n_first: 6
+        n_second: 11
+        accept_first: 0.0
+        accept_second: 0.09090909090909091
+      open|d6:
+        n_first: 8
+        n_second: 4
+        accept_first: 0.125
+        accept_second: 0.0
+      open|d7:
+        n_first: 9
+        n_second: 7
+        accept_first: 0.3333333333333333
+        accept_second: 0.14285714285714285
+      open|d8:
+        n_first: 6
+        n_second: 5
+        accept_first: 0.3333333333333333
+        accept_second: 0.4
+      open|d9:
+        n_first: 5
+        n_second: 8
+        accept_first: 0.4
+        accept_second: 0.5
+    what_it_reads: acceptance in the first half against the second, holding the stratum fixed
+    alpha: 0.01
+    verdict: FLAT
+  calibration: *id001
+  rejudgement:
+    cells:
+      1|first:
+        n: 10
+        accepted: 7
+      0|first:
+        n: 38
+        accepted: 2
+      1|second:
+        n: 9
+        accepted: 7
+      0|second:
+        n: 41
+        accepted: 0
+    by_half:
+      first:
+        n: 48
+        accept_to_accept: 7
+        accept_to_reject: 3
+        reject_to_accept: 2
+        reject_to_reject: 36
+        rejudged_accepted_of_originally_accepted:
+          n: 10
+          accepted: 7
+          rate: 0.7
+        rejudged_accepted_of_originally_rejected:
+          n: 38
+          accepted: 2
+          rate: 0.05263157894736842
+      second:
+        n: 50
+        accept_to_accept: 7
+        accept_to_reject: 2
+        reject_to_accept: 0
+        reject_to_reject: 41
+        rejudged_accepted_of_originally_accepted:
+          n: 9
+          accepted: 7
+          rate: 0.7777777777777778
+        rejudged_accepted_of_originally_rejected:
+          n: 41
+          accepted: 0
+          rate: 0.0
+    overall:
+      n: 98
+      accept_to_accept: 14
+      accept_to_reject: 5
+      reject_to_accept: 2
+      reject_to_reject: 77
+      rejudged_accepted_of_originally_accepted:
+        n: 19
+        accepted: 14
+        rate: 0.7368421052631579
+      rejudged_accepted_of_originally_rejected:
+        n: 79
+        accepted: 2
+        rate: 0.02531645569620253
+    fisher_p_first_vs_second_half_among_originally_accepted: 1.0
+    fisher_p_first_vs_second_half_among_originally_rejected: 0.2281726712106459
+    what_it_reads: how often a blind second look agrees with the first, split by where in the first sheet the panel
+      sat; it never enters a rate directly
+    rejudges: rate_subduction_01
+    n_rejudged_and_decided: 98
+    n_not_decided_this_time: 2
+    source:
+      batch_id: rate_subduction_01
+      labelled_sheet_sha256: 1f0e38def0e4a4d396a9a22197d85825050657f733784df0bf370684dd5b4abc
+      decided_science_rows: 779
+      half_cut_at_sample_id: 412.0
+    never_a_rate: a re-judgement decides nothing on its own; it corrects the rate of the batch it re-judges (pipeline/rates.py)

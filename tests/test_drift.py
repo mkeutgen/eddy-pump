@@ -5,7 +5,8 @@ sessions, by two to three times the sampling error, and the net of the two limbs
 across that band. Nothing in the draw or the loader guarded against it. These tests hold the guards
 that were added.
 
-Four things:
+Seven things, the last three added on 2026-09-08 after the loader let a second look in over a
+calibration copy that had read stricter than the reference:
 
 1. **The controls are spread by the draw.** Every arm sits at evenly spaced positions, so a fresh
    draw passes the loader's position check at every seed; a sheet whose controls were dropped where
@@ -18,6 +19,14 @@ Four things:
 4. **The corrected rate.** On a synthetic sheet whose second half was read at half the acceptance,
    the correction puts the rate back where the first half had it, and the refusal to load fires when
    the drift is there and nothing has measured it.
+5. **The calibration copy labelled before the sheet is the one that decides.** Not an earlier copy
+   that passed. If it read DRIFTED the sheet is refused, naming the copy and its numbers; loaded by
+   hand, the record says so, and a second look loaded that way corrects no rate.
+6. **Two second looks of one sheet are read together.** Their cell counts add and the error bar
+   narrows by about √2; one whose calibration copy did not pass is left out of the correction and
+   keeps its rows.
+7. **The second look shaped by the first verdict.** The four cells of the correction are strata of
+   the draw, shared out so the correction's error is as small as it can be at 100 panels.
 """
 
 from __future__ import annotations
@@ -421,3 +430,266 @@ def test_the_rate_report_leaves_the_corrected_columns_empty_until_a_second_look_
         assert T.rate_drift_corrected.isna().all(), "no second look has been loaded; nothing may be corrected"
         page = (REPO / "data/labels/audit/RATE_STATUS.md").read_text()
         assert "## The net — not quoted" in page
+
+
+# --------------------------------------------------------------------------------------------- #
+# 5. the calibration copy labelled before the sheet is the one that decides
+# --------------------------------------------------------------------------------------------- #
+def _calibration_copy(d: Path, bid: str, pool_id: str, when: str, verdict: str, kappa: float = 0.85,
+                      accepted: int = 17, n: int = 42, reference: int = 17, undecided: int = 0) -> None:
+    """A calibration copy on disk as the loader reads it: its draw record and its loaded record."""
+    (d / f"{bid}.yaml").write_text(yaml.safe_dump({"batch_id": bid, "pool_id": pool_id, "role": "calibration"}))
+    decided = n - undecided
+    (d / f"{bid}.labelled.yaml").write_text(yaml.safe_dump(
+        {"batch_id": bid, "worksheet_mtime": when,
+         "session": {"verdict": verdict, "kappa": kappa, "n_reference": n, "n_decided": decided,
+                     "n_undecided": undecided, "base_rate_observed": accepted / decided,
+                     "base_rate_reference": reference / n}}))
+
+
+POOL = "net_carbon_v1/physical/subduction"
+
+
+def test_the_most_recent_calibration_copy_decides_not_an_older_one_that_passed(monkeypatch, tmp_path):
+    """The hole this closes: on 2026-09-08 the loader took a copy that had passed a week earlier and
+    ignored the copy labelled that morning, which read DRIFTED. The copy labelled before a session is
+    what says whether the session counts."""
+    LB = _loader()
+    monkeypatch.setattr(LB, "DRAWS", tmp_path)
+    _calibration_copy(tmp_path, "calib_subduction_v1_pass2", POOL, "2026-09-01T14:23:56-04:00", "PASS",
+                      kappa=0.86, accepted=20)
+    _calibration_copy(tmp_path, "calib_subduction_v1_pass3", POOL, "2026-09-08T09:19:36-04:00", "DRIFTED",
+                      kappa=0.73, accepted=13, undecided=2)
+    rec = {"batch_id": "rejudge_subduction_01", "pool_id": POOL, "role": "rejudgement"}
+    with pytest.raises(SystemExit) as e:
+        LB.calibration_check_for(rec, "2026-09-08T09:22:29-04:00", False, False)
+    msg = str(e.value)
+    assert "calib_subduction_v1_pass3" in msg and "13/42" in msg and "17/42" in msg
+    assert "DRIFTED" in msg and "20% relative stricter" in msg and "κ 0.73" in msg
+    assert "--repass calib_subduction_v1" in msg and "--accept-calibration-drift" in msg
+    assert "calib_subduction_v1_pass2" not in msg.split("Label a fresh")[0], "the older PASS is no defence"
+    # the same two copies, and a sheet labelled BEFORE the drifted one: then the PASS is the check
+    check = LB.calibration_check_for(rec, "2026-09-02T10:00:00-04:00", False, False)
+    assert check["batch"] == "calib_subduction_v1_pass2" and check["verdict"] == "PASS"
+    assert check["earlier_day"] is True and check["counts_for_correction"] is True
+    assert check["accepted_by_hand"] is False
+
+
+def test_a_drifted_calibration_copy_can_be_accepted_by_hand_and_the_record_carries_it(monkeypatch, tmp_path):
+    LB = _loader()
+    monkeypatch.setattr(LB, "DRAWS", tmp_path)
+    _calibration_copy(tmp_path, "calib_subduction_v1_pass3", POOL, "2026-09-08T09:19:36-04:00", "DRIFTED",
+                      kappa=0.73, accepted=13, undecided=2)
+    rec = {"batch_id": "rejudge_subduction_01", "pool_id": POOL, "role": "rejudgement"}
+    check = LB.calibration_check_for(rec, "2026-09-08T09:22:29-04:00", True, False)
+    assert check["batch"] == "calib_subduction_v1_pass3" and check["verdict"] == "DRIFTED"
+    assert check["base_rate_you"] == "13/42" and check["base_rate_reference"] == "17/42"
+    assert abs(check["base_rate_drift_relative"] + 0.197) < 0.01 and check["undecided"] == 2
+    assert check["accepted_by_hand"] is True and check["kappa"] == 0.73
+    assert check["counts_for_correction"] is False and "did not pass" in check["does_not_count_because"]
+    assert check["earlier_day"] is False and "the same day" in check["warning"]
+    # and it may be made to count, but only by saying so as well
+    both = LB.calibration_check_for(rec, "2026-09-08T09:22:29-04:00", True, True)
+    assert both["counts_for_correction"] is True and "--count-for-correction" in both["counts_by_hand"]
+    # a rate sheet has no such field: only a second look corrects a rate
+    rate = LB.calibration_check_for({"batch_id": "rate_subduction_01", "pool_id": POOL, "role": "analysis"},
+                                    "2026-09-08T09:22:29-04:00", True, False)
+    assert "counts_for_correction" not in rate and rate["accepted_by_hand"] is True
+
+
+def test_no_calibration_copy_at_all_is_refused(monkeypatch, tmp_path):
+    LB = _loader()
+    monkeypatch.setattr(LB, "DRAWS", tmp_path)
+    rec = {"batch_id": "rate_subduction_01", "pool_id": POOL, "role": "analysis"}
+    with pytest.raises(SystemExit) as e:
+        LB.calibration_check_for(rec, "2026-09-08T09:22:29-04:00", False, False)
+    assert "no scored copy" in str(e.value)
+    check = LB.calibration_check_for(rec, "2026-09-08T09:22:29-04:00", True, False)
+    assert check["batch"] is None and check["accepted_by_hand"] is True
+    # a copy of the OTHER limb is not this limb's check
+    _calibration_copy(tmp_path, "calib_obduction_v1_pass3", "net_carbon_v1/physical/obduction",
+                      "2026-09-08T08:05:43-04:00", "PASS")
+    with pytest.raises(SystemExit):
+        LB.calibration_check_for(rec, "2026-09-08T09:22:29-04:00", False, False)
+    assert [c["batch"] for c in LB.calibration_copies(POOL)] == []
+
+
+def test_the_pass_that_became_the_saved_answers_is_not_a_check(monkeypatch, tmp_path):
+    """That pass scores κ = 1 against itself, which says nothing about whether the reading held. The
+    check is the next blind copy — which is what the upward held-region sheet was really read against
+    (`calib_obduction_v1_pass2`, κ 0.95), not the freezing pass seven minutes later."""
+    LB = _loader()
+    monkeypatch.setattr(LB, "DRAWS", tmp_path)
+    _calibration_copy(tmp_path, "calib_x_pass2", POOL, "2026-09-04T17:20:58-04:00", "PASS", kappa=0.95)
+    _calibration_copy(tmp_path, "calib_x", POOL, "2026-09-04T17:28:03-04:00", "PASS", kappa=1.0)
+    l = yaml.safe_load((tmp_path / "calib_x.labelled.yaml").read_text())
+    l["session"]["reference_is_this_pass"] = True
+    (tmp_path / "calib_x.labelled.yaml").write_text(yaml.safe_dump(l))
+    assert [c["batch"] for c in LB.calibration_copies(POOL)] == ["calib_x_pass2"]
+    check = LB.calibration_check_for({"batch_id": "rate_x", "pool_id": POOL, "role": "analysis"},
+                                     "2026-09-04T17:52:04-04:00", False, False)
+    assert check["batch"] == "calib_x_pass2" and check["kappa"] == 0.95
+    # and the real records on disk read the same way
+    if (DRAWS / "rate_obduction_02.labelled.yaml").exists():
+        assert yaml.safe_load((DRAWS / "rate_obduction_02.labelled.yaml").read_text()
+                              )["anchor"]["batch_id"] == "calib_obduction_v1_pass2"
+
+
+def test_the_loaded_records_of_today_say_which_limb_may_correct_a_rate():
+    """The two second looks on disk: the upward one counts, the downward one does not, and the rate
+    report says why in the reviewer's own numbers."""
+    for bid, counts in (("rejudge_obduction_01", True), ("rejudge_subduction_01", False)):
+        p = DRAWS / f"{bid}.labelled.yaml"
+        if not p.exists():
+            pytest.skip(f"{bid} is not on this machine")
+        cal = yaml.safe_load(p.read_text())["calibration_check"]
+        assert cal["counts_for_correction"] is counts, bid
+        assert cal["batch"].startswith("calib_") and cal["verdict"] in ("PASS", "DRIFTED")
+    csv = REPO / "data/labels/audit/rate_status.csv"
+    if not csv.exists():
+        pytest.skip("no rate report on this machine")
+    T = pd.read_csv(csv).set_index("pool_id")
+    up, down = T.loc["net_carbon_v1/physical/obduction"], T.loc["net_carbon_v1/physical/subduction"]
+    assert up.rejudgement_batches == "rejudge_obduction_01" and up.rate_drift_corrected > 0
+    assert pd.isna(down.rate_drift_corrected) and down.rejudgements_not_counted == "rejudge_subduction_01"
+    assert "13/42" in down.no_drift_correction_because and "17/42" in down.no_drift_correction_because
+    page = (REPO / "data/labels/audit/RATE_STATUS.md").read_text()
+    assert "## The net — not quoted" in page and "13/42" in page
+
+
+# --------------------------------------------------------------------------------------------- #
+# 6. two second looks of one sheet are read together
+# --------------------------------------------------------------------------------------------- #
+def test_two_second_looks_of_one_sheet_pool_their_cells_and_the_interval_shrinks():
+    """A synthetic pair: the same four cells, re-judged twice at the same rates. Pooling doubles
+    every count, so the correction lands on the same rate with a smaller error bar — about 1/√2 of
+    it, because the cell rates are pinned by twice as many panels."""
+    rng = np.random.default_rng(3)
+    sid, second, y, stratum = _drifted_sheet(rng)
+    N_h = {"open|d8": 100_000, "open|d9": 100_000}
+    cell = np.array([f"{v}|{'second' if s else 'first'}" for v, s in zip(y, second)])
+    one = {"1|first": {"n": 30, "accepted": 24}, "0|first": {"n": 40, "accepted": 4},
+           "1|second": {"n": 15, "accepted": 12}, "0|second": {"n": 15, "accepted": 3}}
+    two = {c: {"n": v["n"], "accepted": v["accepted"]} for c, v in one.items()}   # a second sheet, same rates
+    alone = B.drift_corrected_rate(y.astype(float), cell, stratum, N_h, one, 0.013, n_boot=6000, seed=1)
+    pooled = B.drift_corrected_rate(y.astype(float), cell, stratum, N_h,
+                                    {c: [dict(one[c], batch_id="rj_01"), dict(two[c], batch_id="rj_02")] for c in one},
+                                    0.013, n_boot=6000, seed=1)
+    assert pooled["rate"] == pytest.approx(alone["rate"], abs=1e-12), "the same rates pool to the same rate"
+    for c, v in pooled["cell_rates"].items():
+        assert v["n"] == 2 * one[c]["n"] and v["accepted"] == 2 * one[c]["accepted"]
+        assert [x["batch_id"] for x in v["pooled_from"]] == ["rj_01", "rj_02"]
+    assert pooled["se_rejudgement"] < alone["se_rejudgement"]
+    assert pooled["se_rejudgement"] == pytest.approx(alone["se_rejudgement"] / np.sqrt(2), rel=0.05)
+    assert pooled["se_total"] < alone["se_total"] and pooled["half_width_95"] < alone["half_width_95"]
+    # one block or a list of one are the same thing
+    same = B.drift_corrected_rate(y.astype(float), cell, stratum, N_h, {c: [one[c]] for c in one}, 0.013,
+                                  n_boot=6000, seed=1)
+    assert same["rate"] == alone["rate"] and same["se_rejudgement"] == pytest.approx(alone["se_rejudgement"])
+    assert B.pool_cells({"n": 5, "accepted": 2}) == {"n": 5, "accepted": 2}
+    assert B.pool_cells([{"n": 5, "accepted": 2}, {"n": 0, "accepted": 0}]) == {"n": 5, "accepted": 2}
+
+
+def test_the_rate_report_pools_two_loaded_second_looks_of_the_same_sheet(monkeypatch, tmp_path):
+    """`loaded_rejudgements` hands the correction every second look of a sheet, oldest first, and
+    leaves out the ones whose calibration copy did not pass."""
+    sys.path.insert(0, str(REPO / "pipeline"))
+    import rates as R
+
+    monkeypatch.setattr(R, "DRAWS", tmp_path)
+    for bid, when, counts in (("rj_a", "2026-09-08T09:00:00-04:00", True),
+                              ("rj_b", "2026-09-09T09:00:00-04:00", True),
+                              ("rj_c", "2026-09-10T09:00:00-04:00", False)):
+        (tmp_path / f"{bid}.yaml").write_text(yaml.safe_dump(
+            {"batch_id": bid, "role": "rejudgement", "rejudges": "rate_x"}))
+        (tmp_path / f"{bid}.labelled.yaml").write_text(yaml.safe_dump(
+            {"batch_id": bid, "worksheet_mtime": when,
+             "calibration_check": {"batch": "calib_x", "verdict": "PASS" if counts else "DRIFTED",
+                                   "kappa": 0.8, "base_rate_you": "13/42", "base_rate_reference": "17/42",
+                                   "counts_for_correction": counts,
+                                   "does_not_count_because": "the calibration copy did not pass"},
+             "session": {"rejudgement": {"cells": {"1|first": {"n": 10, "accepted": 7}},
+                                         "overall": {"n": 10, "accept_to_reject": 3, "reject_to_accept": 0}}}}))
+    got, skipped = R.loaded_rejudgements(["rate_x"])
+    assert [x["batch_id"] for x in got["rate_x"]] == ["rj_a", "rj_b"], "oldest first, and rj_c is left out"
+    assert [x["batch_id"] for x in skipped] == ["rj_c"] and skipped[0]["base_rate_you"] == "13/42"
+    assert R.loaded_rejudgements(["rate_y"]) == ({}, [])
+
+
+# --------------------------------------------------------------------------------------------- #
+# 7. the second look shaped by the first verdict
+# --------------------------------------------------------------------------------------------- #
+def test_the_allocation_by_cell_beats_the_uniform_one_and_respects_its_floor_and_its_rows():
+    """The shape comes out of the correction's own variance: panels ∝ what the cell is worth × the
+    spread of its flip rate. It must beat the uniform shape it replaces, keep the floor, and never
+    ask for more rows than a cell has."""
+    share = {"0|first": 0.396, "0|second": 0.416, "1|first": 0.110, "1|second": 0.077}
+    q = {"0|first": 0.064, "0|second": 0.012, "1|first": 0.682, "1|second": 0.750}
+    avail = {"0|first": 241, "0|second": 269, "1|first": 99, "1|second": 70}
+    n = B.rejudgement_allocation(share, q, avail, 100)
+    assert sum(n.values()) == 100 and all(v >= B.REJUDGE_CELL_FLOOR for v in n.values())
+    assert all(n[c] <= avail[c] for c in n)
+    uniform = {"0|first": 36.0, "0|second": 39.8, "1|first": 14.0, "1|second": 10.2}   # what a uniform draw gives
+    assert B.rejudgement_correction_se(share, q, n) < B.rejudgement_correction_se(share, q, uniform)
+    # it roughly doubles the panels the reviewer first called real — 19 of 100 under the uniform draw
+    assert 30 <= n["1|first"] + n["1|second"] <= 45
+    # but not further: the cells of panels first called NOT real carry four fifths of the weight, so
+    # a shape with 60 of the 100 panels among the accepted ones is worse than the uniform draw
+    heavy = {"1|first": 30, "1|second": 30, "0|first": 20, "0|second": 20}
+    assert B.rejudgement_correction_se(share, q, heavy) > B.rejudgement_correction_se(share, q, uniform)
+    # a cell with almost nothing left is capped there and the rest is shared out
+    thin = B.rejudgement_allocation(share, q, {**avail, "0|first": 20}, 100)
+    assert thin["0|first"] == 20 and sum(thin.values()) == 100
+    with pytest.raises(ValueError):
+        B.rejudgement_allocation(share, q, {c: 10 for c in share}, 100)
+    with pytest.raises(ValueError):
+        B.rejudgement_allocation(share, q, avail, 4 * B.REJUDGE_CELL_FLOOR - 1)
+
+
+@pytest.mark.parametrize("bid", ["rejudge_subduction_02", "rejudge_obduction_02"])
+def test_the_by_verdict_second_look_draws_its_four_cells_and_leaves_the_first_look_alone(bid, tmp_path):
+    """Both redos, built for real and written nowhere: 100 science rows in four cells, none of them a
+    panel the first second look already re-judged, every cell with its own inclusion probability."""
+    D = _draw_script()
+    src = D.DESIGNS[bid]["rejudges"]
+    prior = D.DESIGNS[bid]["prior"]
+    if not (DRAWS / f"{prior}.labelled.yaml").exists():
+        pytest.skip(f"{prior} is not on this machine")
+    plan = D.Plan(0.15, D.HELD_PANELS)
+    rng = np.random.default_rng([20260827, D.DESIGNS[bid]["seed_index"]])
+    batch, design = plan.build(bid, rng)
+    ws, key = batch.assemble()
+    assert design["role"] == "rejudgement" and design["decides"] is False and design["by_verdict"] is True
+    assert design["n_science"] == 100 and len(ws) == 120 <= D.MAX_SHEET_ROWS
+    assert list(ws.columns) == B.WORKSHEET_COLS and ws.LABEL.isna().all() and not (set(ws.columns) & B.BLIND_FORBIDDEN)
+    sci = key[key.stratum == B.TARGET]
+    assert len(sci) == 100 and sci.original_label.isin([0, 1]).all()
+    cells = {c["cell"]: c for c in design["cells"]}
+    assert set(cells) == {"0|first", "0|second", "1|first", "1|second"}
+    drawn = (sci.original_label.astype(int).astype(str) + "|" + sci.original_half).value_counts().to_dict()
+    for c, x in cells.items():
+        assert drawn[c] == x["n"] >= B.REJUDGE_CELL_FLOOR
+        assert x["inclusion_probability"] == pytest.approx(x["n"] / x["N"])
+        assert sci.inclusion_probability[(sci.original_label.astype(int).astype(str) + "|" + sci.original_half) == c].eq(
+            x["inclusion_probability"]).all()
+    assert sum(x["n"] for x in cells.values()) == 100
+    # the weights are the share of the pool the re-judged sheet's own strata carry: all of the
+    # downward pool, the open region of the upward one. The cells of panels first called not real
+    # carry most of it, which is why the shape does not go all the way to the accepted ones.
+    weight = sum(x["weight_in_the_corrected_rate"] for x in cells.values())
+    assert 0.9 < weight <= 1.0 + 1e-9
+    assert sum(x["weight_in_the_corrected_rate"] for c, x in cells.items() if c.startswith("0")) > 0.7 * weight
+    # the panels the first second look saw are left out
+    first = pd.read_csv(B.resolve_recorded_path(
+        yaml.safe_load((DRAWS / f"{prior}.yaml").read_text())["answer_key"]["path"]))
+    seen = set(B.key3(first[first.stratum == B.TARGET]))
+    assert not (set(B.key3(sci)) & seen), "a panel already seen twice is not a fresh second look"
+    assert design["source"]["excluded_already_rejudged"]["rows"] == 100
+    # and the shape is better than the uniform one it replaces
+    e = design["correction_error"]
+    assert e["se_this_shape"] < e["se_if_drawn_uniformly_by_half"]
+    assert e["se_pooled_with"] == prior and e["se_pooled_with_that_sheet"] < e["se_this_shape"]
+    assert 0.015 < e["se_this_shape"] < 0.025
+    c = key[key.stratum.isin(B.CONTROL_STRATA)]
+    rep = B.control_position_check(c.SAMPLE_ID.to_numpy(), c.stratum.to_numpy(), len(key))
+    assert rep["verdict"] == "PASS", "the controls of a redo are spread like any other sheet"

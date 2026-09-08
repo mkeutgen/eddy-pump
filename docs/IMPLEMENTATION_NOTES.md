@@ -95,6 +95,17 @@ panels (`python pipeline/draw_batch.py --repass calib_<limb>_…`), labelled, th
 `make calibrate SHEET=…`. Only then is the batch labelled. `load_batch.py` looks for a calibration
 of the same pool that passed and was finished *before* the batch sheet, and refuses otherwise.
 
+Each loaded record (`data/labels/draws/<batch>.labelled.yaml`, and the same block in
+`study_batches.yaml`) carries `calibration_check`: the LAST scored copy of that pool's 42 panels
+labelled before the sheet — its `batch`, `verdict`, `kappa`, `base_rate_you` and
+`base_rate_reference`, whether it was on an `earlier_day`, and `accepted_by_hand` when the sheet was
+loaded over a copy that did not pass (`--accept-calibration-drift`). It replaces the field the older
+records call `anchor`, which readers still fall back to.
+
+A second look also carries `counts_for_correction`: false when the copy labelled before it did not
+pass, and then `pipeline/rates.py` leaves that limb's `rate_drift_corrected` empty and says why in
+`no_drift_correction_because`. Its rows stay in the label table either way.
+
 `make study-help` prints the rules. Slow steps: `verify-candidates` ~36 min, `features` ~54 min.
 
 ## Rebuilding the fleet cache

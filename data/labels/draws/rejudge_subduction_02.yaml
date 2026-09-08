@@ -1,0 +1,204 @@
+# data/labels/draws/rejudge_subduction_02.yaml -- the draw record of one study batch. Built by pipeline/draw_batch.py;
+# never edited by hand. The sheet and key it hashes live under results/ (not in Git).
+batch_id: rejudge_subduction_02
+built: '2026-09-08T12:09:42-04:00'
+builder: pipeline/draw_batch.py
+seed: 20260827
+study_id: net_carbon_v1
+pool_id: net_carbon_v1/physical/subduction
+spec_id: v1:6b8de00d7d53e118
+event_type: physical_subduction
+criterion_version: phys_net_carbon_v1
+criterion_status: ruled
+cache:
+  path: /Users/mk0964/Documents/release/cache_paper/residual_cache_v4
+  fine_grids: 2542
+  fine_grids_sha256: 11fce215c7db6cebabfbb0d233d17ed7b6674e388bcfb5b91153449ec35f8299
+scores_manifest:
+  path: data/features/net_carbon_v1/SCORES_SHA256
+  sha256: 0a2e5c57d4c525b6286dca2df8e80baa559c80f4b1bfc19b5146b719a616d896
+  built: '2026-09-04T15:14:48'
+  features_manifest_sha256: 14b8ed206cb754f1c65872914c9dfae7f4917774d19ced6def8ebdccabce495d
+role: rejudgement
+decides: false
+rejudges: rate_subduction_01
+sampling:
+  mode: probability
+  draw: uniform within each first verdict × half of the source sheet
+  design: probability
+  frame: the 679 decided science rows of rate_subduction_01 left to re-judge (its controls and its uncertain rows
+    are not re-judged)
+  strata: 'the four cells of the correction: what the reviewer first called the panel, crossed with the half of
+    the sitting it sat in'
+  inclusion_probability: the cell's panels / the cell's rows, exact and equal within a cell
+  allocation: 'the shape that makes the correction''s error smallest at this size: panels ∝ the cell''s weight in
+    the corrected rate × √(q(1−q)) of its planned flip rate, at least 15 panels per cell'
+source:
+  batch_id: rate_subduction_01
+  labelled_sheet: results/net_carbon_v1/labeling/rate_subduction_01/rate_subduction_01_LABELLED_20260902T201854Z.csv
+  labelled_sheet_sha256: 1f0e38def0e4a4d396a9a22197d85825050657f733784df0bf370684dd5b4abc
+  answer_key_sha256: 92dbd64b629d3d0b530fb3f456fd4bcb1003fe2df00591d993a83173a40d73d9
+  rows_in_sheet: 832
+  decided_science_rows: 779
+  half_cut_at_sample_id: 412.0
+  halves:
+    first:
+      n: 390
+      originally_accepted: 109
+    second:
+      n: 389
+      originally_accepted: 79
+  excluded_already_rejudged:
+    batches:
+    - rejudge_subduction_01
+    rows: 100
+    why: a panel already seen twice is not a fresh second look
+halves:
+- half: first
+  N: 340
+  n: 65
+  inclusion_probability: null
+  originally_accepted_in_the_half: 99
+  originally_accepted_in_the_draw: 22
+- half: second
+  N: 339
+  n: 35
+  inclusion_probability: null
+  originally_accepted_in_the_half: 70
+  originally_accepted_in_the_draw: 15
+answer_key_carries:
+- the first verdict (original_label)
+- where it sat in the first sheet (original_sample_id)
+- which half that was (original_half)
+- its stratum (design_stratum)
+- its score
+what_it_is_for: it measures how the reviewer's reading moved across the first sitting; it never enters a rate directly,
+  it corrects one (data/labels/audit/RATE_STATUS.md)
+check_before_labelling: 'the pool''s 42 calibration panels re-labelled blind: PASS, on an earlier day'
+steering_labels:
+  n: 0
+  accepted: 0
+  what: 'none: a re-judgement is not allocated on a model'
+n_science: 100
+n_controls:
+  positive: 10
+  negative: 10
+floats_in_draw: 95
+previously_judged_in_draw: 100
+hours_at_planning_rate: 0.9566666666666667
+strata: []
+controls:
+  positive:
+    source: the companion's verified subduction events (Category 1/2) with a candidate in the pool
+    criterion: the companion's 2024 rule
+    n_source: 3983
+    reference_k: null
+    reference_n: null
+    reference_provenance: judged under the companion's 2024 rule (clauses 1-3, cycle unit); the acceptance under
+      clause 4 is unknown until calib_subduction_v1 is decided — the reader reports these, no Fisher test
+    src: companion verified under the companion's 2024 rule
+    steering: the companion's reviewed detections joined to the pool (verified 1, rejected or detected-not-verified
+      0), rescaled to the planning base rate
+  negative:
+    source: the companion's explicit rejections (Category 0) with a candidate in the pool
+    criterion: the companion's 2024 rule
+    n_source: 233
+    ceiling: 0.2
+    src: companion rejected under the companion's 2024 rule
+cells:
+- cell: 0|first
+  first_verdict: not real
+  half: first
+  N: 241
+  n: 43
+  inclusion_probability: 0.17842323651452283
+  weight_in_the_corrected_rate: 0.39630223654512126
+  planned_flip_rate: 0.0641025641025641
+- cell: 0|second
+  first_verdict: not real
+  half: second
+  N: 269
+  n: 20
+  inclusion_probability: 0.07434944237918216
+  weight_in_the_corrected_rate: 0.41630799088482795
+  planned_flip_rate: 0.011904761904761904
+- cell: 1|first
+  first_verdict: real
+  half: first
+  N: 99
+  n: 22
+  inclusion_probability: 0.2222222222222222
+  weight_in_the_corrected_rate: 0.11007909168396889
+  planned_flip_rate: 0.6818181818181818
+- cell: 1|second
+  first_verdict: real
+  half: second
+  N: 70
+  n: 15
+  inclusion_probability: 0.21428571428571427
+  weight_in_the_corrected_rate: 0.07731068088608199
+  planned_flip_rate: 0.75
+by_verdict: true
+correction_error:
+  planned_flip_rates:
+    0|first: 0.0641025641025641
+    0|second: 0.011904761904761904
+    1|first: 0.6818181818181818
+    1|second: 0.75
+  planned_flip_rates_from: 'the flip rates rejudge_subduction_01 measured, Jeffreys-smoothed: 0|first 2/38, 0|second
+    0/41, 1|first 7/10, 1|second 7/9'
+  weight_in_the_corrected_rate:
+    0|first: 0.39630223654512126
+    0|second: 0.41630799088482795
+    1|first: 0.11007909168396889
+    1|second: 0.07731068088608199
+  se_this_shape: 0.022699311144481222
+  se_if_drawn_uniformly_by_half: 0.02462415573599873
+  uniform_shape_for_comparison:
+    0|first: 35.4
+    0|second: 39.7
+    1|first: 14.6
+    1|second: 10.3
+  what_it_is: the standard error the cell rates alone put on the corrected rate, at the planned flip rates; the
+    sampling error of the rate sheet adds to it in quadrature
+  se_pooled_with: rejudge_subduction_01
+  se_pooled_with_that_sheet: 0.016691007224384602
+  se_pooled_if_drawn_uniformly: 0.01784936549641969
+  pooling_holds_only_if: rejudge_subduction_01 counts for the correction — its own calibration copy passed; otherwise
+    this sheet stands alone at se_this_shape
+sheet_columns:
+- LABEL
+- SAMPLE_ID
+- WMO
+- CYCLE_NUMBER
+- PRES_ADJUSTED
+- LATITUDE
+- LONGITUDE
+- TIME
+- EVENT_TYPE
+blind: true
+control_placement:
+  how: 'evenly spaced: one control every 6.0 rows, and each arm evenly spread across those positions, both at a
+    random offset'
+  stride_rows: 6.0
+  n_controls: 20
+  n_rows: 120
+  arms:
+    neg_ctrl: 10
+    pos_ctrl: 10
+  offsets: random, and not recorded — writing them down would name the control rows
+worksheet:
+  path: results/net_carbon_v1/labeling/rejudge_subduction_02/rejudge_subduction_02.csv
+  sha256: 51901780e226779055b36845c13987c85630a8acc19867562db26f609de541a3
+  rows: 120
+answer_key:
+  path: results/net_carbon_v1/labeling/rejudge_subduction_02/ANSWER_KEY_do_not_open.csv
+  sha256: c86f31d8df50b8da77179433effdebcb3e5d7e7787bc482224537cfbc7005fba
+  rows: 120
+sessions: null
+session_rule: one sheet of 120 rows
+panels:
+  dir: results/net_carbon_v1/labeling/rejudge_subduction_02
+  rendered: 120
+  of: 120
+  per_sheet: 1

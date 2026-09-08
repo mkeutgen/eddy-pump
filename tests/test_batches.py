@@ -362,7 +362,13 @@ def test_the_sheets_on_disk_when_present():
             sci = key[key.stratum == B.TARGET]
             assert len(sci) == r["n_science"] and len(ws) <= B.MAX_SHEET_ROWS
             assert sci.original_label.isin([0, 1]).all() and sci.original_half.isin(["first", "second"]).all()
-            assert sci.original_half.value_counts().to_dict() == {"first": 50, "second": 50}
+            # per-half counts come from the record: 50/50 for the uniform design, the derived split
+            # (by first verdict and half) for the redo designs
+            planned_halves = {}
+            for c in (r.get("cells") or r.get("halves") or r.get("strata") or []):
+                half = c.get("half") or str(c.get("design_stratum", "")).split("|")[-1]
+                planned_halves[half] = planned_halves.get(half, 0) + int(c["n"])
+            assert sci.original_half.value_counts().to_dict() == planned_halves
             assert key[key.stratum.isin(B.CONTROL_STRATA)].REF_LABEL.isin([0, 1]).all()
         elif bid == "calib_obduction_b6":
             assert key.REF_LABEL.isin([0, 1]).all() and int(key.REF_LABEL.sum()) == 18
